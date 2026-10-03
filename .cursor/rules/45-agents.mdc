@@ -1,0 +1,16 @@
+---
+description: Agent runtime, tools, and agents
+globs: packages/agents/**
+alwaysApply: false
+---
+
+- Agents act only through tools in packages/agents/tools/. No SQL or repository imports.
+- Tools call services. Tools never write money tables directly; only promotion does, after human verification.
+- Every tool is on an allowlist per agent
+- Reader agents (see raw documents) get no write tools. Actor agents never receive raw document text.
+- Every number in AI-written text passes number_check against the database
+- New actions default to autonomy Level 2 (draft, human sends). Level 4 actions (verify money, accept risk) are never automatic.
+- Limits on every run: max steps, max retries (2), cost cap, rate cap
+- Log every step to agent_step. Every proposal to agent_proposal.
+- Agents never call each other. They emit events; the router decides.
+- Each agent folder has: card.md, prompt, tests, at least one eval case

@@ -1,0 +1,14 @@
+{
+  "category": "certified_invoice",
+  "fields": {
+    "igst": {
+      "value": null,
+      "financial": true
+    }
+  },
+  "assertions": {
+    "seller_gstin_state_code": "27",
+    "buyer_gstin_state_code": "27",
+    "tax_mode": "cgst_sgst"
+  }
+}

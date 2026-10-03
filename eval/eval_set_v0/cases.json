@@ -1,0 +1,101 @@
+[
+  {
+    "id": "basement-leakage",
+    "sha256": "3dd1fbaf67045cba3a9c0717e547906d2da656a3a6d7c5b57c9d1e5ba3f1ea51",
+    "doc_type": "email",
+    "expected_category": "potential_dispute",
+    "extractor": "vision",
+    "why": "Tests intent-based dispute classification and defect-location evidence.",
+    "status": "pending_transcription"
+  },
+  {
+    "id": "hcc-statement-of-claim",
+    "sha256": "74161cf20e59969bdcd8d284c0ba35a4d924a55486cd321189bd7bdcaefbb976",
+    "doc_type": "resolution_statement",
+    "expected_category": "core_evidence",
+    "extractor": "vision",
+    "why": "Tests claim narrative and citation extraction.",
+    "status": "pending_transcription"
+  },
+  {
+    "id": "raheja-tax-invoice",
+    "sha256": "c0078df0a3509e6f122da9bc5a05c0a0e2b84a9c9b2c08391cac9434673d054f",
+    "doc_type": "certified_ra_bill",
+    "expected_category": "certified_invoice",
+    "extractor": "vision",
+    "why": "Same-state GSTINs require CGST and SGST; absent IGST must remain null.",
+    "status": "transcribed"
+  },
+  {
+    "id": "shantigram-ra-01",
+    "sha256": "1edbe41a2af0958cbb3a355bf30794f69b796953f55a5ee977501efeb1e90d72",
+    "doc_type": "certified_ra_bill",
+    "expected_category": "certified_invoice",
+    "extractor": "structured",
+    "why": "Tests discovery of the CHECKLIST sheet and its 13 annexures.",
+    "status": "pending_transcription"
+  },
+  {
+    "id": "potential-dispute-email",
+    "sha256": "a8fc31404ffabbb9ed2b0140c833226ea2e69044bd7a0192f5e8969c92fe7120",
+    "doc_type": "email",
+    "expected_category": "potential_dispute",
+    "extractor": "vision",
+    "why": "Tests intent classification where dispute vocabulary may be absent.",
+    "status": "pending_transcription"
+  },
+  {
+    "id": "gecpl-bg-invocation",
+    "sha256": "68a2e3efead89102e1accfc0353421aa818a5d6bf131931501a2d0847d32b9e4",
+    "doc_type": "bank_guarantee",
+    "expected_category": "bg_document",
+    "extractor": "vision",
+    "why": "Canonical dual-date BG and client-admission evidence case.",
+    "status": "transcribed"
+  },
+  {
+    "id": "nathani-heights-wcc",
+    "sha256": "f59818977c28e0b4901d7e5003357b0c87321daf4fd0fc1c96289b8eaadc08e0",
+    "doc_type": "work_completion_certificate",
+    "expected_category": "wcc_handover",
+    "extractor": "vision",
+    "why": "Tests WCC and DLP date extraction.",
+    "status": "pending_transcription"
+  },
+  {
+    "id": "aakriti-legal-notice-draft",
+    "sha256": "917cafaf4402b6d540b2416f51e4ef821f209fea018bc4d8a0452f937b2b967a",
+    "doc_type": "resolution_statement",
+    "expected_category": "potential_dispute",
+    "extractor": "vision",
+    "why": "Tests escalation and legal-notice evidence.",
+    "status": "pending_transcription"
+  },
+  {
+    "id": "runwal-payment-details",
+    "sha256": "0a385a8a9aa22906f0ea3feba149d0253a2cf34ed53cda4ec1063ed6f28c77c4",
+    "doc_type": "payment_reconciliation",
+    "expected_category": "payment_advice",
+    "extractor": "structured",
+    "why": "Tests per-WO gross, deductions and cross-foot assertions.",
+    "status": "pending_transcription"
+  },
+  {
+    "id": "indiabulls-payment-mismatch",
+    "sha256": "4fb953f75e21fb77e2e915ff40104ac99404136b9c187b661ab31b519a4ce096",
+    "doc_type": "payment_reconciliation",
+    "expected_category": "payment_advice",
+    "extractor": "structured",
+    "why": "Tests accounting reconciliation from a real workbook.",
+    "status": "pending_transcription"
+  },
+  {
+    "id": "sample-wcc-email",
+    "sha256": "49d7b29ca4c70083c70def7a5349302cd31f2e3b6e5f0c481fbe16b8cb0dffc5",
+    "doc_type": "work_completion_certificate",
+    "expected_category": "wcc_handover",
+    "extractor": "vision",
+    "why": "Tests WCC classification from an email container.",
+    "status": "pending_transcription"
+  }
+]

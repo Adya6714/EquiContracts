@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "proforma_invoice",
+  "description": "Extraction schema for proforma/running account bill submissions.",
+  "type": "object",
+  "properties": {
+    "invoice_number": {
+      "type": ["string", "null"],
+      "description": "Proforma or RA bill reference number"
+    },
+    "ra_bill_number": {
+      "type": ["string", "null"],
+      "description": "Running account bill number if applicable"
+    },
+    "work_order_ref": {
+      "type": ["string", "null"],
+      "description": "Work order number this bill relates to"
+    },
+    "gross_amount": {
+      "type": ["string", "null"],
+      "description": "Total claimed amount as decimal string",
+      "pattern": "^\\d+\\.\\d{2}$"
+    },
+    "currency": {
+      "type": ["string", "null"],
+      "default": "INR"
+    },
+    "submission_date": {
+      "type": ["string", "null"],
+      "format": "date"
+    },
+    "submission_date_raw": {
+      "type": ["string", "null"]
+    },
+    "billing_period_from": {
+      "type": ["string", "null"],
+      "format": "date"
+    },
+    "billing_period_to": {
+      "type": ["string", "null"],
+      "format": "date"
+    },
+    "cumulative_amount": {
+      "type": ["string", "null"],
+      "description": "Cumulative billed amount up to this RA bill",
+      "pattern": "^\\d+\\.\\d{2}$"
+    },
+    "annexures_submitted": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "string"
+      },
+      "description": "List of annexure names included with this submission"
+    }
+  },
+  "required": ["invoice_number", "gross_amount"],
+  "additionalProperties": false
+}

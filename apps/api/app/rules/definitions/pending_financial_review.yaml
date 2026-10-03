@@ -1,0 +1,6 @@
+id: pending_financial_review
+when: extracted_field.is_financial and extracted_field.state == "needs_review"
+severity: high
+evidence_query: pending_financial_fields_for_work_order
+action_owner: contractor
+autonomy_tier: draft

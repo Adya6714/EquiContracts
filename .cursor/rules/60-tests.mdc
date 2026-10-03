@@ -1,0 +1,12 @@
+---
+description: Tests
+globs: apps/api/tests/**, packages/**/tests/**
+alwaysApply: false
+---
+
+- Never skip, xfail, weaken, or delete a test to make it pass
+- Tenancy tests run as the app role, never as postgres
+- Test intent from the spec, not the current implementation
+- Use fixed dates (injected clock) for anything time-based
+- Generate unique codes per test run; fixed literals collide
+- Put tests in the folder for their phase (phase0/, phase1/, ...)

@@ -1,0 +1,13 @@
+---
+description: Next.js website
+globs: apps/web/**
+alwaysApply: false
+---
+
+- Website first, mobile-friendly (responsive). Designs are phone-sized; they must also work on desktop.
+- Route groups: (contractor) and (client). Client screens show verified data only.
+- All API calls go through lib/api.ts
+- Money displayed as ₹ with lakh/crore formatting. Dates DD/MM/YYYY.
+- No calculations in components. Show numbers the API returns.
+- Every number shown should be tappable to its source document when the API provides it
+- Follow the designs in docs/design/ when present

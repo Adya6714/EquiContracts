@@ -1,0 +1,15 @@
+---
+description: Database migrations and row-level security
+globs: packages/db/**
+alwaysApply: false
+---
+
+- New migration = next number. Never edit an applied one.
+- Money columns: numeric(18,2)
+- Every tenant table: ENABLE + FORCE row level security
+- Separate read and write policies. Participants (client/PMC) read only.
+- Child tables use the shared access helper function, don't copy policy logic
+- Set org with `set_config('app.current_org_id', :org, true)`, never `SET LOCAL x = :param`
+- To change a function's parameters: DROP then CREATE, not CREATE OR REPLACE
+- Add a test in apps/api/tests that proves cross-tenant access is blocked for any new table
+- Only one agent runs migrations at a time

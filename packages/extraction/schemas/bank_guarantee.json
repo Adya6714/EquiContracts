@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "bank_guarantee",
+  "description": "Extraction schema for bank guarantee documents. Phase 1 tuning.",
+  "type": "object",
+  "properties": {
+    "bg_number": {
+      "type": ["string", "null"],
+      "description": "Bank guarantee reference number"
+    },
+    "bg_type": {
+      "type": ["string", "null"],
+      "enum": ["mobilization", "performance", "retention", null],
+      "description": "Type of bank guarantee"
+    },
+    "issuing_bank": {
+      "type": ["string", "null"],
+      "description": "Name of the issuing bank"
+    },
+    "value": {
+      "type": ["string", "null"],
+      "description": "BG value as decimal string (e.g. '17080000.00'). Never a JSON number.",
+      "pattern": "^\\d+\\.\\d{2}$"
+    },
+    "currency": {
+      "type": ["string", "null"],
+      "default": "INR"
+    },
+    "issue_date": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "ISO-8601 date"
+    },
+    "issue_date_raw": {
+      "type": ["string", "null"],
+      "description": "Date as it appears in the document (day-first Indian format)"
+    },
+    "expiry_date": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Guarantee validity end date (ISO-8601)"
+    },
+    "expiry_date_raw": {
+      "type": ["string", "null"]
+    },
+    "claim_expiry_date": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Claim invocation deadline — SEPARATE from and LATER than expiry_date"
+    },
+    "claim_expiry_date_raw": {
+      "type": ["string", "null"]
+    },
+    "beneficiary": {
+      "type": ["string", "null"],
+      "description": "Party in whose favour the BG is issued (typically the client)"
+    },
+    "applicant": {
+      "type": ["string", "null"],
+      "description": "Party on whose behalf the BG is issued (typically the contractor)"
+    },
+    "conditionality": {
+      "type": ["string", "null"],
+      "enum": ["conditional", "unconditional", null],
+      "description": "Whether the BG is conditional or unconditional"
+    },
+    "underlying_contract_ref": {
+      "type": ["string", "null"],
+      "description": "Work order or contract reference this BG secures"
+    }
+  },
+  "required": ["bg_number", "value", "expiry_date"],
+  "additionalProperties": false
+}

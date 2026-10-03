@@ -1,0 +1,12 @@
+---
+description: Deterministic rules engine
+globs: apps/api/app/rules/**
+alwaysApply: false
+---
+
+- NO AI. No anthropic, openai, langchain, langgraph imports. CI enforces this.
+- Each rule is a YAML file in definitions/: id, when, severity, evidence_query, action_owner (default contractor), autonomy_tier (default draft), thresholds
+- `now` is passed in. Never call datetime.now() inside a rule.
+- Rules upsert exceptions (same input twice = same result)
+- Test every rule at its boundary (e.g. 30 days fires, 31 does not)
+- Thresholds are guesses until the co-founder confirms; mark them so in the YAML

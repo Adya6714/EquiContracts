@@ -1,0 +1,2 @@
+-- Phase 1: milestone / certification chain
+-- See docs/plans/phase-1-bg-verify.md

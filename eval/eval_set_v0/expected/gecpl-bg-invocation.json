@@ -1,0 +1,21 @@
+{
+  "category": "bg_document",
+  "fields": {
+    "bg_number": {
+      "value": "0544BGR0097618",
+      "financial": false
+    },
+    "value": {
+      "value": "17080000.00",
+      "financial": true
+    },
+    "expiry_date": {
+      "value": "2023-04-23",
+      "financial": true
+    },
+    "claim_expiry_date": {
+      "value": "2024-04-23",
+      "financial": true
+    }
+  }
+}

@@ -1,0 +1,16 @@
+---
+description: Global non-negotiables for every task
+alwaysApply: true
+---
+
+- Read AGENTS.md and docs/plans/START_HERE.md before starting
+- Copy existing patterns; don't invent new ones
+- Money: Decimal only. Never float.
+- Never mark a financial field verified without a named human
+- Never skip, weaken, or delete a test. Never edit eval/eval_set_v0/.
+- Never edit an applied migration
+- Log IDs only, never document contents, names, or emails
+- `make verify` must pass before saying done. Show real output.
+- Append DECISIONS.md when choosing between options; update FLOW.md for new call paths
+- Keep BOOK.md complete (full diagrams; report built/unwired/failed). No `.cursorrules`.
+- If unsure or the spec looks wrong, stop and ask

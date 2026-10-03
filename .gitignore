@@ -1,0 +1,33 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+.env
+.env.local
+*.pem
+
+# Real client documents. Never committed. See eval/eval_set_v0/README.md
+eval/eval_set_v0/documents/*
+!eval/eval_set_v0/documents/.gitkeep
+# Real client reference packs and local design assets (never commit)
+Equicontracts Reference Documents
+docs/reference/
+docs/archive/
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
+.DS_Store
+
+# Ephemeral machine snapshot for new chats (overwrite each run)
+REPO_STATE.md

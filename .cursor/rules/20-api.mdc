@@ -1,0 +1,13 @@
+---
+description: API layering, routers, services, repositories
+globs: apps/api/app/routers/**, apps/api/app/services/**, apps/api/app/repositories/**, apps/api/app/core/**, apps/api/app/domain/**
+alwaysApply: false
+---
+
+- Routers: receive request, check role, call one service, return. No SQL, no business logic.
+- Services: business logic. Call repositories and ports.
+- Repositories: the only place with SQL. Parameterised queries only.
+- Domain: pure code, no I/O. Metric definitions live here, once.
+- org_id comes from the authenticated principal only
+- Missing record and another org's record return the identical 404
+- (client) routes return verified data only

@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "warranty_certificate",
+  "description": "Extraction schema for warranty and DLP (defect liability period) certificates.",
+  "type": "object",
+  "properties": {
+    "work_order_ref": {
+      "type": ["string", "null"],
+      "description": "Work order this warranty covers"
+    },
+    "warranty_type": {
+      "type": ["string", "null"],
+      "enum": ["product", "workmanship", "dlp", "comprehensive", null]
+    },
+    "start_date": {
+      "type": ["string", "null"],
+      "format": "date"
+    },
+    "start_date_raw": {
+      "type": ["string", "null"]
+    },
+    "expiry_date": {
+      "type": ["string", "null"],
+      "format": "date"
+    },
+    "expiry_date_raw": {
+      "type": ["string", "null"]
+    },
+    "tenure_months": {
+      "type": ["integer", "null"],
+      "description": "Duration in months"
+    },
+    "scope_description": {
+      "type": ["string", "null"],
+      "description": "What the warranty covers"
+    },
+    "issuing_party": {
+      "type": ["string", "null"],
+      "description": "Contractor or subcontractor issuing the warranty"
+    },
+    "beneficiary": {
+      "type": ["string", "null"],
+      "description": "Client or project owner"
+    }
+  },
+  "required": ["work_order_ref", "expiry_date"],
+  "additionalProperties": false
+}
