@@ -66,7 +66,9 @@ def _text_from_docx_bytes(data: bytes) -> str:
     lines = [p.text.strip() for p in document.paragraphs if p.text.strip()]
     for table in document.tables:
         for row in table.rows:
-            cells = [c.text.strip().replace("\n", " ") for c in row.cells if c.text.strip()]
+            cells = [
+                c.text.strip().replace("\n", " ") for c in row.cells if c.text.strip()
+            ]
             if cells:
                 lines.append(" | ".join(cells))
     return "\n".join(lines)

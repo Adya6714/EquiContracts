@@ -159,9 +159,7 @@ def _call_model(*, system: str, user: str) -> tuple[str, str]:
         return _call_openai_compatible(
             system=system,
             user=user,
-            base_url=os.environ.get(
-                "OLLAMA_BASE_URL", "http://127.0.0.1:11434/v1"
-            ),
+            base_url=os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434/v1"),
             api_key=os.environ.get("OLLAMA_API_KEY", "ollama"),
             model=os.environ.get("EXTRACTION_MODEL", "llama3:latest"),
         )
@@ -180,7 +178,9 @@ def _call_anthropic(*, system: str, user: str) -> tuple[str, str]:
         messages=[{"role": "user", "content": user}],
     )
     text_parts = [
-        block.text for block in message.content if getattr(block, "type", None) == "text"
+        block.text
+        for block in message.content
+        if getattr(block, "type", None) == "text"
     ]
     return model, "\n".join(text_parts)
 
@@ -196,7 +196,9 @@ def _call_openai_compatible(
     # Ollama's OpenAI-compat endpoint is more reliable via plain HTTP than the
     # OpenAI SDK against a flaky local daemon.
     if base_url and "11434" in base_url:
-        return _call_ollama_http(system=system, user=user, base_url=base_url, model=model)
+        return _call_ollama_http(
+            system=system, user=user, base_url=base_url, model=model
+        )
 
     from openai import OpenAI
 
