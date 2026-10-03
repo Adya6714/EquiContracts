@@ -24,7 +24,8 @@ Every way execution begins. If it isn't listed here, it doesn't exist.
 | `POST /review/fields/{id}/verify`            | Contractor UI           | `routers/review.verify_field`        | contractor\_\*       | `org_scoped_session`                             |
 | `GET /client/dashboard`                      | Client UI               | `routers/client_dashboard.overview`  | client\_\*, pmc_user | `org_scoped_session` + **verified-only filter**  |
 | `python -m packages.extraction.eval_harness` | CLI                     | `eval_harness.main`                  | none                 | no DB                                            |
-| `python -m packages.extraction.eval_harness --case gecpl-bg-invocation` | CLI | `eval_harness.run_case` → `bg_extractor.extract_bank_guarantee_from_path` | none | no DB |
+| `python -m packages.extraction.eval_harness --case gecpl-bg-invocation` | CLI | `eval_harness.run_case` → `bg_extractor.extract_bank_guarantee_from_path` → `_call_model` → `llm_config.get_llm_settings` → Anthropic SDK or OpenAI-compatible client | none | no DB |
+
 
 **Two entry points deserve special attention.**
 
@@ -239,3 +240,18 @@ Format:
 - **Not changed:** application code
 - **Verify run:** `scripts/check_agent_rules.py` — 10 checks passed; `ruff` failed on 3 pre-existing E501 lines in `packages/extraction/{bg_extractor,document_text}.py` (untouched this session)
 - **Decision logged:** D-018 through D-023
+
+### 2026-10-03 · session · Cursor · LLM provider settings for BG extractor
+
+- **Task:** Select extraction LLM from `.env` via `LLM_PROVIDER` / `LLM_MODEL` with one
+  key slot per provider; wire anthropic vs OpenAI-compatible paths; offline tests; GECPL eval
+- **Files touched:** `packages/extraction/llm_config.py`, `packages/extraction/bg_extractor.py`,
+  `packages/extraction/tests/test_llm_config.py`, `.env.example`, `.env` (local only),
+  `DECISIONS.md`, `FLOW.md`
+- **New call path:** `_call_model` → `get_llm_settings()` → if `anthropic` then
+  `_call_anthropic(model, api_key)` else `_call_openai_compatible` for
+  `gemini` / `openai` / `ollama` (base URL default or `LLM_BASE_URL`)
+- **Not changed:** eval fixtures, apps/, migrations, docs under `docs/`
+- **Verify run:** `make verify` — All checks passed (45 pytest); GECPL eval 4/4,
+  `model_version: gemini-2.5-flash`
+- **Decision logged:** D-024, D-025

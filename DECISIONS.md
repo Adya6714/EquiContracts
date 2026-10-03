@@ -623,3 +623,57 @@ quality bar for release.
 **Why this approach.** Trust is earned with data, not assumed.
 
 **Revisit if.** Review data supports promoting a specific action.
+
+---
+
+## D-024 — Provider-selectable LLM settings via one key slot each
+- **Date:** 2026-10-03
+- **Phase:** 1
+- **Decided by:** Composer
+- **Status:** accepted
+
+**Context.** BG extraction previously inferred provider from whichever key happened to be
+set (`EXTRACTION_PROVIDER` / `OPENAI_*` / `OLLAMA_*`). That made it easy to send a Gemini
+key through the OpenAI slot and hard to switch providers safely.
+
+**Options considered.**
+1. Keep auto-detect from whichever key is present — rejected: ambiguous, cross-uses keys.
+2. Single `LLM_PROVIDER` + `LLM_MODEL` with one dedicated key env per provider — chosen.
+
+**Decision.** `packages/extraction/llm_config.py` is the only settings reader for extraction.
+`LLM_PROVIDER` is one of `gemini`, `anthropic`, `openai`, `ollama`. `LLM_MODEL` is required
+with no in-code default. Cloud keys come only from `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`,
+or `OPENAI_API_KEY` matching the chosen provider. Ollama uses the placeholder key
+`ollama`. Base URL has a fixed default per provider, overridable with `LLM_BASE_URL`.
+`bg_extractor` routes anthropic through `_call_anthropic` (Anthropic SDK); gemini/openai/
+ollama through the OpenAI-compatible client. Neither path reads `os.environ` for keys.
+
+**Why this approach.** Explicit choice; no silent fallback; one secret slot per vendor.
+
+**Trade-offs accepted.** Local `.env` must set provider and model; missing vars fail loudly.
+
+**Revisit if.** A new provider needs a non-OpenAI and non-Anthropic client shape.
+
+---
+
+## D-025 — Free or local model in development; paid key later; record model_version
+- **Date:** 2026-10-03
+- **Phase:** 1
+- **Decided by:** Composer
+- **Status:** accepted
+
+**Context.** Development and GECPL comparison should work on a free Gemini tier or local
+Ollama without forcing a paid Anthropic/OpenAI key on day one.
+
+**Decision.** Dev may use `LLM_PROVIDER=gemini` (or `ollama`) with the matching free/local
+setup. Paid cloud keys are swapped in later by changing `.env` only. Every extraction run
+records `model_version` from the configured `LLM_MODEL` on the result (and on persisted
+`extracted_field` rows) so eval and review know which model produced the numbers.
+
+**Why this approach.** Unblocks local gates; keeps provenance when the quality bar moves
+to a paid model.
+
+**Trade-offs accepted.** Free/local models may miss dual-date accuracy; release quality
+still judged against cloud results when required.
+
+**Revisit if.** Pilot accuracy forces a pinned paid model for all environments.

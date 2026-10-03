@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 from dataclasses import dataclass
 from decimal import Decimal
@@ -15,6 +14,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .document_text import load_document_text
+from .llm_config import get_llm_settings
 
 ROOT = Path(__file__).resolve().parents[2]
 PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "bank_guarantee.v1.md"
@@ -136,41 +136,31 @@ def process_bank_guarantee_document(
 
 
 def _call_model(*, system: str, user: str) -> tuple[str, str]:
-    provider = os.environ.get("EXTRACTION_PROVIDER", "").strip().lower()
-    if not provider:
-        if os.environ.get("ANTHROPIC_API_KEY"):
-            provider = "anthropic"
-        elif os.environ.get("OPENAI_API_KEY"):
-            provider = "openai"
-        else:
-            provider = "ollama"
-
-    if provider == "anthropic":
-        return _call_anthropic(system=system, user=user)
-    if provider == "openai":
+    settings = get_llm_settings()
+    if settings.provider == "anthropic":
+        return _call_anthropic(
+            system=system,
+            user=user,
+            model=settings.model,
+            api_key=settings.api_key,
+        )
+    if settings.provider in {"gemini", "openai", "ollama"}:
         return _call_openai_compatible(
             system=system,
             user=user,
-            base_url=os.environ.get("OPENAI_BASE_URL"),
-            api_key=os.environ["OPENAI_API_KEY"],
-            model=os.environ.get("EXTRACTION_MODEL", "gpt-4o"),
+            base_url=settings.base_url,
+            api_key=settings.api_key,
+            model=settings.model,
         )
-    if provider == "ollama":
-        return _call_openai_compatible(
-            system=system,
-            user=user,
-            base_url=os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434/v1"),
-            api_key=os.environ.get("OLLAMA_API_KEY", "ollama"),
-            model=os.environ.get("EXTRACTION_MODEL", "llama3:latest"),
-        )
-    raise RuntimeError(f"unsupported EXTRACTION_PROVIDER={provider!r}")
+    raise RuntimeError(f"unsupported LLM_PROVIDER={settings.provider!r}")
 
 
-def _call_anthropic(*, system: str, user: str) -> tuple[str, str]:
+def _call_anthropic(
+    *, system: str, user: str, model: str, api_key: str
+) -> tuple[str, str]:
     import anthropic
 
-    model = os.environ.get("EXTRACTION_MODEL", "claude-sonnet-4-20250514")
-    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    client = anthropic.Anthropic(api_key=api_key)
     message = client.messages.create(
         model=model,
         max_tokens=4096,
