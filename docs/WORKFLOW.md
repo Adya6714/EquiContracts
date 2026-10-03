@@ -1,6 +1,6 @@
 # How We Work: Cursor, Claude Code, and the Claude Chat
 
-_Related:_ phase-gated feature flow is in `docs/SPEC_DRIVEN_WORKFLOW.md`. Day-to-day agent workflow is this file.
+_Related:_ phase gates and current steps live in `docs/plans/START_HERE.md`. Day-to-day agent workflow is this file.
 
 The day-to-day workflow. Read once, then use the checklists.
 

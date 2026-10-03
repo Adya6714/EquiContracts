@@ -170,135 +170,117 @@ flowchart TB
 | 6 | We can prove what happened | Co-founder judges a generated statement sound |
 | 7 | Safe to give to a real customer | Security checklist done, restore tested |
 
-Phases 2 and 3 may swap. Co-founder decides.
+Phases 2 and 3 may swap. Co-founder decides (see Q1 in MASTER_PLAN_v2).
+
+**Real-document gate:** every phase ends with one real document from `eval/eval_set_v0`
+through the live pipeline. Unit tests prove pieces; only this proves they are wired.
+
+**Tests:** prefer separable phase suites when they exist; before starting a phase, run the
+previous phase's suite.
 
 ---
 
 # Part C: What we do first
 
-Nine steps. Each step: what, why, done when. **You approve each one before the next starts.**
+Ten steps. Each step: what, why, done when. **You approve each one before the next starts.**
 
 ```mermaid
 flowchart TB
-    S0["Step 0: Your decisions"] --> S1["Step 1: Review Tracks A, B, C"]
-    S1 --> S2["Step 2: Service and repository layers"]
-    S2 --> S3["Step 3: Site and engagement"]
-    S3 --> S4["Step 4: Agent foundation"]
-    S4 --> S5["Step 5: Extraction Agent on BGs"]
-    S5 --> S6["Step 6: Intake Agent"]
-    S6 --> S7["Step 7: Review screen and promotion"]
-    S7 --> S8["Step 8: Phase 1 gate on GECPL"]
-    S8 --> S9["Step 9: Linking Agent, then Phase 2"]
+    S1["1 BG extractor baseline<br/>DONE"] --> S2["2 Docs cleanup"]
+    S2 --> S3["3 Services and repositories"]
+    S3 --> S4["4 Site and engagement<br/>+ lock inbound_quarantine"]
+    S4 --> S5["5 Agent foundation"]
+    S5 --> S6["6 Extraction, then Intake"]
+    S6 --> S7["7 Review and promotion"]
+    S7 --> S8["8 Phase 1 gate GECPL"]
+    S8 --> S9["9 Rules + exceptions,<br/>then Linking"]
+    S10["10 Real login<br/>(parallel; before go-live)"] -.-> S8
 ```
 
-## Step 0: Install the kit and confirm decisions
+## Formal decisions already logged
 
-**Install:** run `docs/prompts/00-install-kit.md` in Claude Code.
-
-**Decided**
-
-| # | Decision | Status |
-|---|---|---|
-| D1 | Organise code into routers, services, repositories (folders inside the one repo) | Yes |
-| D8 | Website first, mobile-friendly. Native app later. | Yes |
-| D15 | Adopt the 8-agent design, built phase by phase | Yes |
-| D17 | LangGraph for agents that pause for a human | Yes |
-| D18 | Separate reader AI and actor AI | Yes |
-| D19 | New agent actions start at Level 2 | Yes |
-
-**Still to confirm (recommendation: yes)**
-
-| # | Plain meaning |
+| DECISIONS.md | Plain meaning |
 |---|---|
-| D5 | **Site** = the client's building. **Engagement** = one contractor's job on it. Needed so a client sees one building with several contractors. |
-| D9 | EquiAdvisor answers facts from your data and drafts letters. No advice for now. |
-| D16 | Agents pass work through a shared event board, not by calling each other directly |
+| D-018 | Routers, services, repositories inside the one repo |
+| D-019 | Website first, mobile-friendly; native app later |
+| D-020 | Eight agents, built phase by phase |
+| D-021 | LangGraph where an agent must pause for a human |
+| D-022 | Reader AI separate from actor AI |
+| D-023 | New agent actions start at autonomy Level 2 |
+| D-024 / D-025 | Provider-selectable LLM settings; free/local in dev; `model_version` on every run |
+| D-026 | Site = client's building; engagement = one contractor's job on it |
+| D-027 | Agents hand off through an event table; plain-code router; never call each other |
+| D-029 | EquiAdvisor Facts mode + separate Advice mode |
+| D-030 | One docs index; one decision log; no BOOK requirement |
 
-**Send your co-founder:** module order, who pays, Idle vs Redundant BG, "Seals", trophy icon, rule thresholds, more documents.
+Co-founder open questions are **Q1–Q10** in `docs/plans/MASTER_PLAN_v2.md` (never informal D numbers).
 
-**Send your designer:** S8 interest is 10x wrong, S15 split savings vs capacity, claim expiry column, Attention state on Command Centre, design the Review screen.
+## Step 1: BG extractor baseline — **done**
 
-**Done when:** kit installed, D5 / D9 / D16 answered, lists sent.
+- BG reader in `packages/extraction/`
+- GECPL case: **4/4** fields match `eval/eval_set_v0/expected/gecpl-bg-invocation.json`
+- `model_version`: `gemini-2.5-flash` via `LLM_PROVIDER` / `LLM_MODEL`
 
-## Step 1: Review Tracks A, B, C
+**Done when:** already met.
 
-Three parallel tracks are already running. Before anything new, finish them.
+## Step 2: Docs cleanup — **this step**
 
-| Track | What it built | Check |
-|---|---|---|
-| A | BG extractor | Field-by-field comparison with GECPL expected output. Both dates 366 days apart? Missing fields reported as unresolved, not guessed? |
-| B | Exceptions table and 5 BG rules | What signal did it use for "idle BG"? Boundary tests (30 days fires, 31 doesn't)? |
-| C | Real auth | Old header login has zero effect outside dev/test? All 39 tests still pass? |
+- One index (`docs/README.md`), one decision log, honest HANDOFF/START_HERE
+- Remove stale BOOK / HLD / LLD copies / old phase plans / ADR stubs with `git rm`
+- Fix informal D labels → DECISIONS ids; co-founder items → Q#
 
-- Merge **one at a time**, `make verify` between each merge
-- Bring me each track's report before merging
+**Done when:** `make verify` green; live docs match `docs/README.md`.
 
-**Done when:** all three merged, `make verify` green.
+## Step 3: Services and repositories
 
-## Step 2: Service and repository layers
+- `repositories/`: all SQL
+- `services/`: business logic
+- `routers/`: HTTP only → call a service
+- No behaviour change. Same tests pass. Prompt: `docs/prompts/02-service-layer.md`
 
-Small refactor so the code is organised before it grows.
-
-- `repositories/`: all SQL moves here
-- `services/`: business logic moves here
-- `routers/`: only receive the request, call a service, return the response
-- No behaviour changes. Same tests pass.
-
-**Why now:** agents will call services through tools. Services must exist first.
+**Why now:** agents call services through tools. Services must exist first.
 
 **Done when:** no SQL left in any router, all tests pass, CI check added.
 
-## Step 3: Site and engagement
+## Step 4: Site and engagement, plus lock `inbound_quarantine`
 
-- New migration: `site`, `site_member`, rename `project` to `engagement`, add `site_id`
-- Update security rules so client/PMC access goes through the site
-- **New tests:** two contractors on one site cannot see each other. Client sees both, verified only.
+Same migration batch:
 
-**Why now:** every week of data makes this migration harder. The client view and agents both depend on it.
+- `site`, `site_member`; rename `project` → `engagement`; add `site_id`
+- Client/PMC access through the site
+- Lock down `inbound_quarantine` (today deliberately open until tenant known — revisit with this model)
+- **Tests:** two contractors on one site cannot see each other; client sees both, verified only
+- Prompt: `docs/prompts/03-site-engagement.md`
 
-**Done when:** migration applies clean, old and new tenancy tests pass.
+**Done when:** migration applies clean; old and new tenancy tests pass.
 
-## Step 4: Agent foundation
+## Step 5: Agent foundation
 
-The engine all eight agents run on. No real agents yet.
+- `event` table + plain-code router (D-027)
+- `agent_run`, `agent_step`, `agent_proposal`, `review_decision` + RLS
+- Runtime, guardrails, empty tool belt, one fake test agent
+- Prompt: `docs/prompts/04-agent-foundation.md`
 
-- `event` table and the plain-code router (event → agent table)
-- `agent_run`, `agent_step`, `agent_proposal`, `review_decision` tables, with security rules
-- Runtime: runs an agent, enforces max steps, retries, cost limit
-- Guardrails: tool allowlist, autonomy levels, number check
-- Empty tool belt with 2 read-only tools
-- **One fake test agent** that receives an event, calls a tool, creates a proposal
+**Done when:** fake agent runs end to end; a test proves a disallowed tool call fails.
 
-**Done when:** fake agent runs end to end, every step logged, a test proves an agent cannot call a tool it isn't allowed.
+## Step 6: Extraction Agent, then Intake Agent
 
-## Step 5: Extraction Agent on BGs
+- Move BG extractor into the runtime; self-checks; reader/actor split
+- Then Intake: type, evidence weight, WO link, multi-attachment split
+- `cases.json` already labels all 11 doc types — usable as Intake gold from day one
+- Prompts: `05-extraction-agent.md`, `06-intake-agent.md`
 
-- Move Track A's extractor into the agent runtime
-- Add self-checks: claim expiry on or after expiry, dates valid, amount positive
-- Reader/actor split: extractor has no write tools beyond `propose_fields`
-- Add one injection test document to the eval set. It must cause no action.
-
-**Done when:** GECPL extracted inside the runtime, self-checks pass, injection test passes, eval report shows financial and non-financial accuracy separately.
-
-## Step 6: Intake Agent
-
-- Decides document type and evidence weight, links to work order
-- Splits an email with several attachments into several documents
-- Small, fast model
-
-**Done when:** on the eval set, the BG lands as "bank guarantee", DMRC and Jai Vijay land as "potential dispute".
+**Done when:** GECPL extracted inside the runtime; Intake classifies the eval set correctly.
 
 ## Step 7: Review screen and promotion
 
-- The screen your designer is creating: what the agent read, the page it came from, confidence, approve / correct / reject
-- Every decision saved to `review_decision`
-- Promotion: verified BG fields create the real `bank_guarantee` record
+- Confirm / correct / reject; every decision in `review_decision`
+- Promotion: verified BG fields → real `bank_guarantee` row
+- Prompt: `docs/prompts/07-review-screen.md`
 
-**Done when:** a contractor can confirm all 8 BG fields in under a minute, and the BG record appears.
+**Done when:** contractor confirms BG fields in under a minute; BG record appears.
 
-## Step 8: Phase 1 gate
-
-Forward the real GECPL email to a real project address and watch:
+## Step 8: Phase 1 gate — GECPL end to end
 
 ```mermaid
 flowchart LR
@@ -306,16 +288,28 @@ flowchart LR
     B --> C["Extraction: fields proposed"]
     C --> D["Review: you confirm"]
     D --> E["Promotion: BG record"]
-    E --> F["Check: both dates correct,<br/>366 days apart"]
+    E --> F["Both dates correct,<br/>366 days apart"]
 ```
 
-**Done when:** it works end to end with no manual database edits. This is the moment the product stops being a skeleton.
+Prompt: `docs/prompts/08-phase1-gate.md`
 
-## Step 9: Then
+**Done when:** end to end with no manual database edits.
 
-- Linking Agent (end of Phase 1)
-- Phase 2: Gap Finder, Follow-up, BG Verify screens, notifications
-- Re-plan with whatever the co-founder has answered by then
+## Step 9: Rules and exceptions (Phase 2), then Linking Agent
+
+- Deterministic BG rules + exceptions table
+- Then Linking Agent (end of Capture)
+- No prompt file yet
+
+**Done when:** real BG produces the right reminders on a fixed clock; Linking matches exact IDs.
+
+## Step 10: Real login
+
+- Replace `X-Org-Id` header stub
+- **Can run in parallel any time; must be done before anything goes online**
+- No prompt file yet
+
+**Done when:** header stub has zero effect outside local/test; checklist items for auth pass.
 
 ---
 
@@ -324,11 +318,12 @@ flowchart LR
 - **One step at a time.** You approve before the next starts.
 - **Every step ends with `make verify` green.**
 - **Every decision goes in `DECISIONS.md`.** Every new call path goes in `FLOW.md`.
-- **Max 3 agents (Cursor/Claude Code) in parallel**, only on steps that touch different folders.
+- Update `docs/architecture/project-map.md` when architecture changes. No BOOK.md.
+- **Max 3 agents in parallel**, only on steps that touch different folders.
 - **Nothing merges without you seeing the result.** Real output, not a summary.
 
 ---
 
 # Your next action
 
-Answer the nine decisions in Step 0. Then paste me Track A, B, and C results and we start Step 1.
+Finish Step 2 (docs cleanup), then start Step 3 (services and repositories).

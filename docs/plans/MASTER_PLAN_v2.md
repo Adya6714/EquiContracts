@@ -64,7 +64,7 @@ The two decks describe two different entry paths. We support both, because the d
 | Internal contractor notes | Yes | Never |
 | Exceptions | All | Verified ones, plus ones where client/PMC is the action owner |
 | Source documents behind a number | Yes | Yes, for verified data (this is the transparency promise) |
-| Risk acceptances | Yes | To decide (D7) |
+| Risk acceptances | Yes | To decide (Q5) |
 
 ---
 
@@ -322,7 +322,7 @@ Every "Accept Risk" stores who, when, the reason (required), and the exception i
 ### 6.6 One timeline per work order
 Every event (document received, field verified, exception raised, reminder sent, risk accepted, BG released) in date order. Useful on its own, and it is the raw material for Resolution Statements.
 
-### 6.7 Client acknowledgment (optional, decision D6)
+### 6.7 Client acknowledgment (optional, question Q4)
 Client cannot edit data, but can tap "Seen" on items where they are the action owner. Tiny write, big transparency gain: the certification clock can show "Client PM viewed on 14 Apr".
 
 ### 6.8 Weekly health report
@@ -590,7 +590,7 @@ Each phase ends with a real-document gate: a real document from the eval set, th
 ### Phase 7: Pilot hardening
 - Security checklist items, backups with tested restore, deploy to Indian region, weekly report
 
-**Order note:** Phases 2 and 3 can swap. Your co-founder's document puts Milestone Validator first. I put BG first because it is the clearest reminder use case and needs one document, not a chain. Co-founder decides (D2).
+**Order note:** Phases 2 and 3 can swap. Your co-founder's document puts Milestone Validator first. I put BG first because it is the clearest reminder use case and needs one document, not a chain. Co-founder decides (Q1).
 
 ---
 
@@ -610,38 +610,52 @@ Each phase ends with a real-document gate: a real document from the eval set, th
 
 ---
 
-# Part 12: Decisions needed
+# Part 12: Decisions and open questions
 
-## For you
+Formal decisions live only in `DECISIONS.md`. Do not invent informal D1/D5 labels.
 
-| # | Decision | Recommendation |
-|---|---|---|
-| D1 | Add service and repository layers now | Yes, before Phase 2 |
-| D5 | Adopt site + engagement model | **Yes, now.** Every week we wait adds data to migrate. |
-| D8 | Mobile-first responsive web for the prototype | Yes |
-| D9 | EquiAdvisor v1 scope: factual Q&A + resolution only | Yes |
+## Already decided (see DECISIONS.md)
 
-## For your co-founder
+| Id | Decision |
+|---|---|
+| D-018 | Add service and repository layers |
+| D-019 | Website first, mobile-friendly |
+| D-020 | Eight agents, phase by phase |
+| D-026 | Site + engagement model |
+| D-027 | Event-table handoff; plain-code router |
+| D-029 | EquiAdvisor Facts mode + separate Advice mode |
+
+## For your co-founder (Q#)
 
 | # | Question |
 |---|---|
-| D2 | BG Verify or Milestone Validator first? |
-| D3 | Who pays: contractor, client, or both? (affects which entry path we polish first) |
-| D4 | Project code format: ours, or contractor's own numbering? |
-| D6 | Should clients be able to tap "Seen" on items they own? |
-| D7 | Should clients see the contractor's risk acceptances? |
-| D10 | Definitions: Idle vs Redundant BG. What is "Seals"? What does the trophy mean? |
-| D11 | Interest rate default (screens use 12%) and whether it is per contractor |
-| D12 | Compliance score definition (S5) and target |
-| D13 | Warranty alert window: 60 days or 6 months? |
-| D14 | Reminder schedule for each rule, and who sits on each step of the escalation ladder |
+| Q1 | BG Verify or Milestone Validator first? |
+| Q2 | Who pays: contractor, client, or both? (affects which entry path we polish first) |
+| Q3 | Project code format: ours, or contractor's own numbering? |
+| Q4 | Should clients be able to tap "Seen" on items they own? |
+| Q5 | Should clients see the contractor's risk acceptances? |
+| Q6 | Definitions: Idle vs Redundant BG. What is "Seals"? What does the trophy mean? |
+| Q7 | Interest rate default (screens use 12%) and whether it is per contractor |
+| Q8 | Compliance score definition (S5) and target |
+| Q9 | Warranty alert window: 60 days or 6 months? |
+| Q10 | Reminder schedule for each rule, and who sits on each step of the escalation ladder |
+
+## Backlog: ideas
+
+| Idea | Phase | Owner |
+|---|---|---|
+| Before building each new reader (proforma, certified bill, WCC, payment reconciliation, email), draft that document type's answer keys first: AI drafts, co-founder corrects. Answer keys come before the reader. | with each new reader | Extraction Agent work |
+| Intake can be scored on all 11 cases from day one using `cases.json` `doc_type` / `expected_category` (sorter gold) | Step 6 | Intake Agent |
+| Lock `inbound_quarantine` in the same batch as site/engagement | Step 4 | schema |
+| Claim expiry column on BG dashboard; totals follow filters | Phase 2 screens | Designer + web |
+| Attention / Needs Verification states on Command Centre | Phase 4 | Designer + web |
+| Injection-test documents in the eval bucket before pilot | Phase 7 | Extraction / security |
 
 ---
 
 # Part 13: What happens next
 
-1. You decide D1, D5, D8, D9
-2. Take D2, D3, D4, D6, D7, D10 to D14 to your co-founder
-3. Bring back Tracks A, B, C results; review each before merging
-4. If D5 is yes: site + engagement migration is the next build step, before more Phase 1 work
-5. Then the Phase 1 gate on GECPL
+1. Follow `docs/plans/START_HERE.md` (Step 1 done; Step 2 docs cleanup; then services, site/engagement, agents)
+2. Take Q1–Q10 to your co-founder
+3. Keep designer fixes (S8 interest, S15 capacity vs savings, Review screen) in parallel
+4. Phase 1 gate on GECPL only after Intake + Extraction + review + promotion land

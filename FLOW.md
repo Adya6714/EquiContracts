@@ -255,3 +255,15 @@ Format:
 - **Verify run:** `make verify` — All checks passed (45 pytest); GECPL eval 4/4,
   `model_version: gemini-2.5-flash`
 - **Decision logged:** D-024, D-025
+
+### 2026-10-03 · session · Cursor · docs cleanup
+
+- **Task:** Docs cleanup — one index, formal decisions, honest HANDOFF/START_HERE steps 1–10;
+  `git rm` obsolete BOOK/HLD/LLD/ADR/phase plans (not docs/archive); eval/README.md;
+  MASTER_PLAN backlog answer-key-before-reader wording
+- **Files touched:** `DECISIONS.md` (D-026–D-030), `HANDOFF.md`, `docs/**`, `eval/README.md`,
+  `AGENTS.md`, `README.md`, `.cursor/rules/00-global.mdc`; removed obsolete docs listed in D-030
+- **New call path:** none
+- **Not changed:** `eval/eval_set_v0/`, application code, migrations
+- **Verify run:** `make verify` — All checks passed (45 pytest)
+- **Decision logged:** D-026 through D-030

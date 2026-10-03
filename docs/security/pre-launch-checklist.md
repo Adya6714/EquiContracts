@@ -9,7 +9,7 @@ access — are architectural and take days. Treat this as a checklist to *verify
 script to run.
 
 Related: [project-map.md](../architecture/project-map.md), [runbook.md](../runbook.md),
-ADR [0002-postgres-rls](../../specs/adr/0002-postgres-rls.md).
+[DECISIONS.md](../../DECISIONS.md) (D-002 Postgres RLS).
 
 ---
 

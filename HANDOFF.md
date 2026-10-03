@@ -1,6 +1,25 @@
 # EquiContracts: Handoff Summary
 
-Everything a new chat needs to continue without losing context. Paste NEW_CHAT_PROMPT.md as the first message and attach this file plus the docs listed in section 10.
+Everything a new chat needs. Attach this file plus the docs in section 10.
+
+## Paste this as the first message in a new chat
+
+```
+I'm Adya, founding engineer at EquiContracts. This is a continuation.
+Read HANDOFF.md fully first, then docs/plans/START_HERE.md.
+Other attached docs are reference.
+
+How I want you to work:
+- Plain, beginner-friendly language. Bullets over paragraphs. No em dashes.
+- Explain every system design decision and why, simply.
+- One step at a time. I approve each step before we move on.
+- Do not run code in your own sandbox. I run everything in Cursor and Claude Code.
+- When I paste output, read the real output carefully. Don't assume tests passed.
+- I'm the final decision maker. Recommend clearly, but let me decide.
+
+First: confirm you've understood the product and current state in 10 bullets.
+Then: we continue from the current START_HERE step.
+```
 
 ---
 
@@ -14,7 +33,7 @@ Everything a new chat needs to continue without losing context. Paste NEW_CHAT_P
 - Plain, beginner-friendly language. Bullets, not paragraphs. No em dashes.
 - Explain every system design decision and why
 - One step at a time. Adya approves each step before the next.
-- **Claude does not run code in its own sandbox.** Adya runs everything in Cursor / Claude Code. Claude gives plans, prompts, and explanations.
+- **Claude does not run code in its own sandbox.** Adya runs everything in Cursor / Claude Code.
 - Show real output, not summaries
 
 ## 2. The product
@@ -22,96 +41,81 @@ Everything a new chat needs to continue without losing context. Paste NEW_CHAT_P
 **Contractor feeds. Client sees. Platform structures, verifies, and surfaces exceptions.**
 
 Four problems it solves:
-1. Documents scattered (email, WhatsApp, laptops) → **Evidence Locker**, one inbox
-2. Nobody gets reminded → **rules + agents** watch every date and chase people
-3. No view of project health → **health rollup** item to portfolio
-4. Contractor and client see different truths → **same verified data** for both, every number linked to its source
+1. Documents scattered → **Evidence Locker**, one inbox
+2. Nobody gets reminded → **rules + agents** watch dates and chase people
+3. No view of project health → **health rollup**
+4. Different truths → **same verified data** for both sides
 
 Modules: Evidence Locker, BG Verify, Milestone Validator, Command Centre / Health, Payment Mismatch, Resolution + Q&A. Clause Clarify is **out of scope**.
 
-It is an **agentic platform**: 8 AI agents (Intake, Extraction, Linking, Gap Finder, Follow-up, Briefing, Q&A, Resolution) do the work, the contractor approves.
+**Agentic platform:** 8 AI agents (Intake, Extraction, Linking, Gap Finder, Follow-up, Briefing, Q&A, Resolution). Contractor approves.
 
 ## 3. Stack
 
 - One repo (monorepo)
-- Postgres with row-level security (RLS), FastAPI (Python 3.11 locally), Next.js
-- MinIO locally / S3 later for documents
+- Postgres with RLS, FastAPI (Python 3.11 locally / 3.12 in CI), Next.js
+- MinIO locally / S3 later
 - YAML rules engine, no AI inside it
-- Agents: event table + plain-code router + job queue, LangGraph for agents that pause for a human, Claude via an adapter
-- Tools: Cursor and Claude Code, Docker Desktop
-- **Website first** (responsive, works on phone browsers). Native mobile app later.
-- Inbox: one shared mailbox with plus-addressing, `projects+alias@equicontracts.in`
+- Agents: event table + plain-code router + job queue; LangGraph when an agent pauses for a human
+- **Website first**. Native mobile app later.
+- Inbox: `projects+alias@equicontracts.in`
 
 ## 4. Current repo state
 
-**Phase 0 is done (except real auth):**
-- Migrations 0001 to 0008 apply clean (`make reset`)
-- `make verify` green, 39/39 tests
-- RLS proven live: contractor isolation, client read-only, verified-only, unset org returns zero rows
-- DB constraints proven: financial field needs a human to verify; BG claim expiry must be on/after expiry
-- Endpoints: health, projects, inbound email (HMAC, plus-alias, quarantine), review queue, client dashboard
-- Docs: AGENTS.md, DECISIONS.md (D-001 to D-016), FLOW.md, BOOK.md, .cursor/rules
+**Phase 0 foundation (except real auth):**
+- Migrations 0001–0008, RLS proven, walking API + web skeleton
+- `make verify` green on last local run (45 pytest after LLM settings)
+- Auth is still the `X-Org-Id` header stub — **must** be replaced before anything goes online (START_HERE Step 10)
 
-**Three parallel tracks were queued. Results not yet reviewed:**
-- Track A: BG extractor + eval comparison on GECPL
-- Track B: exceptions table + `evaluate()` + 5 BG rules
-- Track C: real auth replacing the `X-Org-Id` header stub
+**Extraction / eval:**
+- BG extractor on main with **provider-selectable LLM settings**: `LLM_PROVIDER`, `LLM_MODEL`, one key slot per provider (`GEMINI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`; Ollama uses placeholder `ollama`)
+- GECPL baseline **4/4** vs `eval/eval_set_v0/expected/gecpl-bg-invocation.json`, `model_version` **gemini-2.5-flash**
+- Track A (BG extractor) landed. Tracks B (exceptions + BG rules) and C (real auth) **not built**
+- Answer key filename is `gecpl-bg-invocation.json` (not `gecpl.json`)
 
-**Not built yet:** agents, extraction pipeline beyond Track A, money chain tables (0006 is a stub), most screens, site/engagement model.
+**Not built yet:** services/repositories split, site/engagement migration, agents, Intake, promotion UI, money-chain tables beyond stubs
 
 ## 5. Decisions
 
-**Made**
-| # | Decision |
+Canonical log: `DECISIONS.md` (D-001 onward). Do not invent informal D1/D5 labels.
+
+**Recent accepted (excerpt)**
+
+| Id | Decision |
 |---|---|
-| D1 | Organise code into routers, services, repositories (folders inside the one repo) |
-| D8 | Website first, mobile-friendly. Native app later. |
-| D15 | Adopt the 8-agent design, built phase by phase |
-| D17 | LangGraph for agents that need to pause for a human |
-| D18 | Reader AI (sees documents, no tools) separate from actor AI (has tools, never sees raw documents) |
-| D19 | New agent actions start at autonomy Level 2 (draft, human sends) |
-| Earlier | One repo. Plus-addressed single inbox. Three-state verification. Two BG dates. Rules have no AI. Eval set frozen. |
+| D-018 | Routers / services / repositories |
+| D-019 | Website first |
+| D-020 | Eight agents, phase by phase |
+| D-021 | LangGraph for pause-for-human agents |
+| D-022 | Reader AI separate from actor AI |
+| D-023 | New actions start at autonomy Level 2 |
+| D-024 | Provider-selectable LLM settings; one key slot per provider |
+| D-025 | Free/local model in dev; record `model_version` |
+| D-026 | Site + engagement model |
+| D-027 | Event-table handoff; plain-code router |
+| D-028 | ADR stubs retired; DECISIONS.md only |
+| D-029 | EquiAdvisor Facts + separate Advice mode |
+| D-030 | Docs: one index, one decision log, no BOOK |
 
-**Waiting on Adya (explained in plain words, recommendation yes)**
-| # | Question |
-|---|---|
-| D5 | Site + engagement model. Site = the building (client's). Engagement = one contractor's job on it. Needed for the client view. |
-| D9 | EquiAdvisor gives facts from data + drafted letters only, no advice, for now |
-| D16 | Agents hand off work through a shared event board, not by calling each other |
+**Waiting on co-founder:** Q1–Q10 in `docs/plans/MASTER_PLAN_v2.md` (module order, who pays, Idle vs Redundant, Seals, trophy, interest, compliance score, warranty window, reminder ladders, more documents).
 
-**Waiting on co-founder**
-- BG Verify or Milestone Validator first
-- Who pays: contractor, client, or both
-- Idle vs Redundant BG; what "Seals" BG type means; what the trophy icon means
-- Interest rate default (screens use 12%); compliance score definition
-- Warranty alert window (60 days or 6 months)
-- Real thresholds for every rule (all current numbers are guesses)
-- 20 to 30 more varied documents, plus a terminology map
-
-**Waiting on designer**
-- S8 interest exposure is 10x wrong: shows ₹14.5L, formula gives ₹1.45L, correct per-bill ₹1.17L
-- S15 savings mixes money saved with bid capacity (₹3.98 Cr of ₹4.78 Cr is capacity)
-- BG dashboard needs claim expiry column; totals must follow filters
-- Command Centre needs Attention and Needs Verification states
-- Missing screens: Review/confirm, BG detail, Notifications, Exceptions, Drafts inbox, Agent activity, client site view, payment import, settings
+**Waiting on designer:** S8 interest 10x wrong; S15 savings vs capacity; claim expiry column; Attention state; Review screen and related missing screens.
 
 ## 6. Plan
 
-Phases: 0 Foundation (done) → 1 Capture → 2 Remind → 3 Milestone Validator → 4 Health and transparency → 5 Payment mismatch → 6 Resolution and Q&A → 7 Pilot hardening → Pilot.
+Phases: 0 Foundation → 1 Capture → 2 Remind → 3 Milestone Validator → 4 Health → 5 Payment mismatch → 6 Resolution/Q&A → 7 Pilot hardening → Pilot.
 
-Each phase ends with a **real-document gate** (real document through the live system).
-
-**Next steps (from START_HERE.md)**
-- Step 0: Install this kit into the repo (prompt `docs/prompts/00-install-kit.md`), confirm D5, D9, D16
-- Step 1: Review Tracks A, B, C, merge one at a time
-- Step 2: Service and repository layers
-- Step 3: Site and engagement (if D5 yes)
-- Step 4: Agent foundation
-- Step 5: Extraction Agent on BGs
-- Step 6: Intake Agent
-- Step 7: Review screen and promotion
-- Step 8: Phase 1 gate on GECPL
-- Step 9: Linking Agent, then Phase 2
+**START_HERE steps**
+1. BG extractor baseline — **done** (GECPL 4/4)
+2. Docs cleanup — current
+3. Services and repositories
+4. Site and engagement + lock `inbound_quarantine`
+5. Agent foundation
+6. Extraction Agent, then Intake Agent
+7. Review screen and promotion
+8. Phase 1 gate: GECPL end to end
+9. Rules and exceptions, then Linking Agent
+10. Real login (parallel any time; required before go-live)
 
 ## 7. Safety rules that never change
 
@@ -126,22 +130,22 @@ Each phase ends with a **real-document gate** (real document through the live sy
 
 ## 8. Gotchas already learned (don't repeat)
 
-- `SET LOCAL x = :param` is a Postgres syntax error. Use `SELECT set_config('app.current_org_id', :org, true)`.
-- `ENABLE` RLS is not enough; use `FORCE`, and run tests as the app role, not postgres
-- Creating an org needs a separate provisioning connection (RLS blocks the app role, correctly)
+- `SET LOCAL x = :param` is a Postgres syntax error. Use `SELECT set_config(...)`.
+- `ENABLE` RLS is not enough; use `FORCE`, and run tests as the app role
+- Creating an org needs a provisioning connection
 - `CREATE OR REPLACE FUNCTION` cannot rename a parameter; drop and recreate
-- CI checkout needs `fetch-depth: 0` for the eval-immutability check
-- Docker Desktop must be open (daemon running) before `make up`
-- Test fixtures with fixed codes collide across runs; generate unique codes
-- Agents read AGENTS.md and still drift; enforce rules in CI, not just in text
-- A single read+write RLS policy lets participants write; split read and write policies
-- `.cursorrules` is ignored by Cursor Agent mode; use AGENTS.md + `.cursor/rules/*.mdc`
+- CI checkout needs `fetch-depth: 0` for eval-immutability
+- Docker Desktop must be open before `make up`
+- Test fixtures with fixed codes collide; generate unique codes
+- Enforce agent rules in CI, not only in AGENTS.md text
+- Split read and write RLS policies for participants
+- No `.cursorrules` — use AGENTS.md + `.cursor/rules/*.mdc`
 
 ## 9. Data
 
-- 11 real documents from Nina Percept in `eval/eval_set_v0/` (raw files in a private bucket, not git)
-- Only 2 of 11 expected outputs transcribed
-- Key real-data findings: BG expiry and claim expiry ~1 year apart (GECPL: 366 days); GST split CGST/SGST/IGST with IGST null not zero (Raheja); 13-item submission checklist (Shantigram); 5-part deductions (Runwal); "Reminder - 02" escalation in subjects; dispute emails that never say "dispute" (Jai Vijay)
+- 11 real documents catalogued in `eval/eval_set_v0/cases.json` (raw files not in git; private bucket / local reference folder)
+- Human answer keys today: `gecpl-bg-invocation.json`, `raheja-tax-invoice.json`
+- Key findings: BG dual dates 366 days apart (GECPL); GST CGST/SGST with IGST null (Raheja); 13-item checklist (Shantigram); 5-part deductions (Runwal); reminder escalation in subjects; dispute emails without the word "dispute"
 
 ## 10. Documents to attach to the new chat
 
@@ -150,4 +154,4 @@ Each phase ends with a **real-document gate** (real document through the live sy
 - `docs/plans/MASTER_PLAN_v2.md`
 - `docs/architecture/AGENTIC_DESIGN.md`
 - `docs/WORKFLOW.md`
-- Optional: latest Cursor repo audit output
+- `docs/README.md`

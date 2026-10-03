@@ -5,6 +5,8 @@ contracting and should not be paraphrased by agents or documentation generators.
 
 | Term | Full form | Meaning |
 |------|-----------|---------|
+| Site | The client's building (e.g. Lodha Supremus). Many contractors can work on one site. |
+| Engagement | One contractor's job on one site. Has its own inbox alias. |
 | BG | Bank Guarantee | Financial instrument issued by a bank on behalf of the contractor. The client can invoke (claim) it if the contractor defaults. |
 | PBG | Performance Bank Guarantee | BG specifically securing performance obligations under a work order. |
 | Mobilization BG | — | BG securing advance payments made to the contractor before work begins. |

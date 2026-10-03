@@ -677,3 +677,110 @@ to a paid model.
 still judged against cloud results when required.
 
 **Revisit if.** Pilot accuracy forces a pinned paid model for all environments.
+
+---
+
+## D-026 — Site and engagement model
+- **Date:** 2026-10-03
+- **Phase:** 1
+- **Decided by:** Adya
+- **Status:** accepted
+
+**Context.** A client building can have several contractors. The old single `project` shape
+cannot show one site with many contractors while keeping contractor isolation.
+
+**Decision.** **Site** = the client's building (for example Lodha Supremus). **Engagement** =
+one contractor's job on that site. An engagement has its own inbox alias. Client and PMC
+access is through the site; contractors never see each other's engagements.
+
+**Why this approach.** Matches how clients think and how plus-address routing works.
+
+**Trade-offs accepted.** Needs a migration from `project` to `engagement` plus `site` /
+`site_member` tables.
+
+**Revisit if.** A product path requires contractor-to-contractor visibility on one site.
+
+---
+
+## D-027 — Agents hand off work through an event table
+- **Date:** 2026-10-03
+- **Phase:** 1
+- **Decided by:** Adya
+- **Status:** accepted
+
+**Context.** Eight agents must collaborate without becoming a mesh of direct calls that
+skip logging, tenancy, and autonomy checks.
+
+**Decision.** Agents hand off work through an **event table**. A **plain-code router**
+(not an LLM) maps each event to the next agent. Agents never call each other directly.
+
+**Why this approach.** Every handoff is durable, auditable, and enforceable by code.
+
+**Trade-offs accepted.** Extra tables and a router; slightly more latency than an in-process call.
+
+**Revisit if.** A single-agent path never needs handoff and the event table becomes noise.
+
+---
+
+## D-028 — Retire ADR stubs; DECISIONS.md is the only decision log
+- **Date:** 2026-10-03
+- **Phase:** docs
+- **Decided by:** Adya
+- **Status:** accepted
+
+**Context.** `specs/adr/0001`–`0008` were thin pointers already covered by DECISIONS.md
+D-001–D-016 era entries. Two logs drifted.
+
+**Decision.** Remove the ADR stub files. Canonical decisions live only in `DECISIONS.md`.
+New choices append there.
+
+**Why this approach.** One place to read; agents cannot "update the wrong log."
+
+**Trade-offs accepted.** Git history keeps the old ADR text if anyone needs it.
+
+**Revisit if.** An external compliance process requires ADR filenames.
+
+---
+
+## D-029 — EquiAdvisor Facts mode and separate Advice mode
+- **Date:** 2026-10-03
+- **Phase:** 6 prep
+- **Decided by:** Adya
+- **Status:** accepted
+
+**Context.** Informal notes said "no advice for now." The product still needs a clear
+boundary between cited facts and commercial suggestions.
+
+**Decision.** EquiAdvisor has **Facts mode** (answers only from verified data with sources)
+and a separate **Advice mode**. Advice mode shows a fixed banner that it is not legal advice,
+may only cite verified facts, is commercial only, is never auto-sent, and requires lawyer
+review before any pilot use. This does not change D-009 (rules engine has no AI).
+
+**Why this approach.** Facts stay trustworthy; advice cannot pretend to be law.
+
+**Trade-offs accepted.** Two modes to build and test; Advice stays Level-4 human-gated.
+
+**Revisit if.** Counsel requires Advice mode off entirely for the first pilot.
+
+---
+
+## D-030 — Docs: one index, one decision log, no BOOK requirement
+- **Date:** 2026-10-03
+- **Phase:** docs
+- **Decided by:** Adya
+- **Status:** accepted
+
+**Context.** BOOK.md, HLD/LLD copies, old phase plans, and ADR stubs duplicated the same
+story and went stale.
+
+**Decision.** Permanent live docs are the small set indexed by `docs/README.md`. Agents
+update `FLOW.md`, `DECISIONS.md`, and `docs/architecture/project-map.md` when behaviour
+changes. BOOK is not required. Obsolete duplicates are removed with `git rm` (not moved to
+the gitignored `docs/archive/`).
+
+**Why this approach.** Honest, short, maintainable source of truth.
+
+**Trade-offs accepted.** Less narrative length; diagrams live in project-map / AGENTIC_DESIGN.
+
+**Revisit if.** A stakeholder needs a single printable tome again.
+

@@ -361,17 +361,21 @@ Example digest:
 
 ## 5.7 Q&A Agent (EquiAdvisor)
 
-**Job:** answer questions about a project using only verified data, and show where each answer came from.
+**Job:** answer questions about a project using only verified data, and show where each answer came from. Optional **Advice mode** is separate (D-029).
 
 | | |
 |---|---|
 | Triggered by | User asks a question |
 | Reads | Verified records and documents, only within what this user is allowed to see |
-| Writes | Nothing. Answers only. |
+| Writes | Nothing in Facts mode. Advice mode may draft commercial wording for human review only. |
 | Must refuse | Legal advice, negotiation strategy, guessing |
-| Self-checks | Every sentence in the answer must have a source |
+| Self-checks | Every sentence in a Facts answer must have a source |
 | Measured by | Answers with correct sources |
 | Model size | Large |
+
+**Facts mode (default):** cited verified data only. Same as the sequence below.
+
+**Advice mode (separate):** fixed banner that this is not legal advice; may only cite verified facts; commercial suggestions only; never auto-sent; lawyer review required before any pilot use.
 
 ```mermaid
 sequenceDiagram
@@ -876,7 +880,7 @@ flowchart LR
 | Drafts inbox (new, Phase 2) | All drafted letters waiting for approval, with the source data next to each |
 | Agent activity (new, Phase 2) | "What the agents did today", with undo for Level 3 actions |
 | Command Centre S21 | Critical item cards show "Draft ready" when Follow-up has prepared an action |
-| EquiAdvisor S17 | Becomes the Q&A Agent. Every answer shows its sources. |
+| EquiAdvisor S17 | Becomes the Q&A Agent. Facts mode shows sources. Advice mode is separate (D-029), never auto-sent. |
 | Settings (new) | Per-agent autonomy controls and on/off switches |
 
 ## Principles added

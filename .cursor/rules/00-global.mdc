@@ -12,5 +12,5 @@ alwaysApply: true
 - Log IDs only, never document contents, names, or emails
 - `make verify` must pass before saying done. Show real output.
 - Append DECISIONS.md when choosing between options; update FLOW.md for new call paths
-- Keep BOOK.md complete (full diagrams; report built/unwired/failed). No `.cursorrules`.
+- Keep project-map.md current when architecture changes. No `.cursorrules`.
 - If unsure or the spec looks wrong, stop and ask

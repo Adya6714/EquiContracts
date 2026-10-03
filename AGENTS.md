@@ -20,7 +20,7 @@ Stack: Postgres 16 (RLS tenancy) · FastAPI · Next.js · MinIO · extraction in
 ## Before any task
 
 1. Read `docs/plans/START_HERE.md` to know the current step
-2. Read the relevant plan or spec; for system context see `docs/architecture/project-map.md` then `HLD.md`
+2. Read the relevant plan or spec; for system context see `docs/architecture/project-map.md` then `AGENTIC_DESIGN.md`
 3. Find the closest existing code pattern and copy it. Do not invent a new pattern.
 4. One task at a time
 5. If the spec is unclear or wrong, stop and say so
@@ -66,9 +66,7 @@ Stack: Postgres 16 (RLS tenancy) · FastAPI · Next.js · MinIO · extraction in
 - MUST NOT create `.cursorrules` — use this file and `.cursor/rules/*.mdc`
 - MUST append to `DECISIONS.md` when choosing between options or adding a library
 - MUST update `FLOW.md` when adding an entry point or call path
-- MUST keep `BOOK.md` as the complete technical report: full HLD/LLD mermaid in-place,
-  every module/table/router/gate reported (built, unwired, or failed). Never omit or
-  summarize away failures. Update BOOK in the same pass as FLOW/DECISIONS.
+- MUST keep `docs/architecture/project-map.md` current when architecture changes
 - Log session work in `FLOW.md` § Session log
 
 ## Code layout

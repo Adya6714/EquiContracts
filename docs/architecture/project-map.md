@@ -2,7 +2,7 @@
 
 Everything the system does, where it lives, and how the pieces connect. Read this when
 you've lost the thread. Living companion docs: [FLOW.md](../../FLOW.md),
-[DECISIONS.md](../../DECISIONS.md), [HLD.md](./HLD.md).
+[DECISIONS.md](../../DECISIONS.md), [AGENTIC_DESIGN.md](./AGENTIC_DESIGN.md).
 
 ---
 
@@ -233,21 +233,445 @@ Canonical decision log: [DECISIONS.md](../../DECISIONS.md).
 
 ## Part 7 — Current state and the path forward
 
-**Done (code):** schema through BG tables · RLS (incl. participant document reads) · API core ·
-four routers · walking web skeleton · CI guardrails · rule engine loader · plus-address
-inbound design · FLOW/DECISIONS living docs.
+**Done (code):** schema through BG tables · RLS · API core · four routers · walking web
+skeleton · CI guardrails · rule engine loader · plus-address inbound · BG extractor with
+provider-selectable LLM settings · GECPL eval baseline 4/4 (`gemini-2.5-flash`) ·
+FLOW/DECISIONS living docs.
 
-**Blocked / in progress:** `0008_inbound_alias.sql` fails on `CREATE OR REPLACE` parameter
-rename (`target_recipient` → `target_alias`) — needs `DROP FUNCTION` first. Until that
-migrates cleanly, `make reset` / full `make verify` against live Postgres is not green.
+**Not built yet:** services/repositories split · site/engagement model · agents · Intake ·
+promotion beyond extractor rows · real auth (header stub remains) · Tracks B/C.
 
-**Immediate path:**
+**Immediate path:** follow [START_HERE.md](../plans/START_HERE.md) steps 2→10.
+Step 1 (BG extractor baseline) is done.
 
-1. Fix migration `0008` (DROP then CREATE `resolve_inbound_project`)
-2. `make reset && make verify` — work through any remaining DB test failures one at a time
-3. **Real-document gate:** GECPL BG through the live pipeline, end to end
-4. Then Phase 1 — [phase-1-bg-verify.md](../plans/phase-1-bg-verify.md)
-
-**Before any public deployment:** replace the auth stub. Right now anyone can set
-`X-Org-Id` to any value and become any organization. Full checklist:
+**Before any public deployment:** replace the auth stub (Step 10). Full checklist:
 [docs/security/pre-launch-checklist.md](../security/pre-launch-checklist.md).
+
+---
+
+## Part 8 — Architecture diagrams (from former HLD / LLD)
+
+Essential system diagrams live here so agents do not need separate HLD/LLD files.
+
+
+### From HLD
+
+## 1. System context
+
+Note the asymmetry: the contractor writes, the client and PMC only read. This is the whole
+product thesis expressed as an access model.
+
+```mermaid
+flowchart TB
+    subgraph Feeders["WRITES — Contractor side"]
+        CA["Contractor Admin"]
+        CPU["Contractor Project User"]
+    end
+
+    subgraph Viewers["READS ONLY — Client / PMC side"]
+        CSM["Client Senior Management"]
+        CPM["Client Project Manager"]
+        PMC["PMC User"]
+    end
+
+    subgraph Ingest["Ingestion"]
+        MAIL["Dedicated project email<br/>projects+{alias}@equicontracts…"]
+        UP["Manual upload"]
+        XL["Accounting export<br/>Excel / CSV"]
+    end
+
+    subgraph Platform["EquiContracts Platform"]
+        API["API + Access Control"]
+        CLASSIFY["AI Classification"]
+        EXTRACT["AI Extraction"]
+        REVIEW["Contractor Verification<br/>ai_extracted → needs_review → verified"]
+        RULES["Rules Engine<br/>deterministic"]
+        GEN["Resolution Generation<br/>Phase 5"]
+    end
+
+    subgraph Store["Data"]
+        PG[("Postgres + RLS")]
+        S3[("Object storage<br/>immutable")]
+    end
+
+    CA --> API
+    CPU --> API
+    CPU --> REVIEW
+
+    MAIL --> CLASSIFY
+    UP --> CLASSIFY
+    XL --> EXTRACT
+
+    CLASSIFY --> EXTRACT
+    EXTRACT --> REVIEW
+    REVIEW -->|verified only| PG
+    CLASSIFY -.raw file.-> S3
+
+    PG --> RULES
+    RULES --> PG
+    PG --> GEN
+
+    API --> PG
+    CSM -->|verified data only| API
+    CPM -->|verified data only| API
+    PMC -->|verified data only| API
+```
+
+**The single most important edge in this diagram** is `REVIEW -->|verified only| PG`.
+Unverified AI output never reaches a client-facing dashboard. That constraint is what makes
+the platform credible to both sides at once: the client trusts the numbers because the
+contractor confirmed them, and the contractor accepts the dashboard because it is built
+from their own submissions.
+
+---
+
+## 3. Access model
+
+This is the part my earlier plan got wrong, and it is worth understanding before writing
+the RLS policy.
+
+```mermaid
+flowchart TB
+    subgraph OrgA["Org: Nina Percept — type contractor"]
+        PA["Project: Lodha Supremus<br/>owner_org_id = Nina"]
+    end
+
+    subgraph OrgB["Org: Lodha — type client"]
+        VB["Read access via<br/>project_participant"]
+    end
+
+    subgraph OrgC["Org: XYZ PMC — type pmc"]
+        VC["Read access via<br/>project_participant"]
+    end
+
+    PA -->|"participant row<br/>role=client<br/>scope=verified_only"| VB
+    PA -->|"participant row<br/>role=pmc<br/>scope=verified_only"| VC
+
+    PA -.->|"NO access"| OTHER["Org: Rival Contractor"]
+```
+
+Three access rules the schema must enforce:
+
+1. A contractor sees **only their own** projects. Never another contractor's, even on the
+   same client's site.
+2. A client sees **verified data only**, across all contractors on their projects.
+3. Internal contractor notes are never visible to the client, regardless of role.
+
+Rule 1 is the existential one. Two subcontractors on the same tower seeing each other's
+rates ends the business.
+
+---
+
+## 5. Layer architecture
+
+```mermaid
+flowchart TB
+    subgraph L1["Presentation"]
+        W1["Contractor screens<br/>Setup · Inbox Review · Modules · Exceptions"]
+        W2["Client dashboard<br/>exceptions only, read-only"]
+    end
+
+    subgraph L2["API"]
+        AUTH["Auth + role resolution"]
+        RLSM["RLS session scoping"]
+        ROUTES["Endpoints"]
+    end
+
+    subgraph L3["Logic"]
+        RULEENG["Rules engine<br/>NO model calls"]
+        VERIF["Verification state machine"]
+        SCORE["Exception ranking"]
+    end
+
+    subgraph L4["AI — isolated"]
+        ROUTER["Type router"]
+        VISION["Vision extractor"]
+        STRUCT["Spreadsheet parser"]
+        CLS["Classifier"]
+    end
+
+    subgraph L5["Durable"]
+        TEMPORAL["Temporal<br/>multi-year BG timers"]
+    end
+
+    subgraph L6["Data"]
+        PGDB[("Postgres + RLS")]
+        OBJ[("Object storage")]
+    end
+
+    L1 --> L2
+    L2 --> L3
+    L3 --> L6
+    L4 --> L3
+    L2 --> L5
+    L5 --> L6
+    L4 -.reads.-> OBJ
+```
+
+`L4` connects to `L3`, never directly to `L1` or `L6`. AI output must pass through the
+verification state machine to become data. That is enforced by a CI check asserting no
+model imports in the rules layer, and by the DB constraint on verification state.
+
+---
+
+### From LLD
+
+## 1. Entity relationship
+
+Corrected for dual-sided access: `org` now carries a type, and `project_participant` grants
+client/PMC read access without making them tenants of the contractor's data.
+
+```mermaid
+erDiagram
+    ORG ||--o{ APP_USER : employs
+    ORG ||--o{ PROJECT : owns
+    PROJECT ||--o{ PROJECT_PARTICIPANT : grants_access_to
+    ORG ||--o{ PROJECT_PARTICIPANT : participates_in
+    PROJECT ||--o{ WORK_ORDER : contains
+    PROJECT ||--o{ DOCUMENT : receives
+    PROJECT ||--o{ PROJECT_MODULE : enables
+
+    WORK_ORDER ||--o{ BANK_GUARANTEE : secured_by
+    WORK_ORDER ||--o{ ANNEXURE_REQUIREMENT : mandates
+    WORK_ORDER ||--o{ PROFORMA_INVOICE : billed_via
+    WORK_ORDER ||--o| WCC : completed_by
+    WORK_ORDER ||--o{ WARRANTY : warranted_by
+    WORK_ORDER ||--o{ EXCEPTION : raises
+
+    BANK_GUARANTEE ||--o{ BG_EVENT : logs
+
+    PROFORMA_INVOICE ||--o{ ANNEXURE_SUBMISSION : includes
+    PROFORMA_INVOICE ||--o| CERTIFICATION : certified_as
+    CERTIFICATION ||--o| TAX_INVOICE : invoiced_as
+    TAX_INVOICE ||--o{ PAYMENT_RECEIPT : paid_by
+    TAX_INVOICE ||--o{ DEDUCTION_LINE : reduced_by
+
+    DOCUMENT ||--o{ EXTRACTED_FIELD : yields
+    DOCUMENT }o--|| DOCUMENT_CLASSIFICATION : classified_as
+
+    ORG {
+        uuid id PK
+        text name
+        text org_type "contractor|client|pmc|internal"
+    }
+    APP_USER {
+        uuid id PK
+        uuid org_id FK
+        text email
+        text role "contractor_admin|contractor_user|client_mgmt|client_pm|pmc_user|ec_admin"
+    }
+    PROJECT {
+        uuid id PK
+        uuid owner_org_id FK "always a contractor org"
+        text name
+        text project_code "EC-MUM-101"
+        text inbound_email
+    }
+    PROJECT_PARTICIPANT {
+        uuid project_id FK
+        uuid org_id FK
+        text role "client|pmc"
+        text data_scope "verified_only"
+    }
+    WORK_ORDER {
+        uuid id PK
+        uuid project_id FK
+        text wo_number "HVAC/WO/042"
+        text trade "HVAC"
+        numeric value
+        integer certification_sla_days
+        text bg_clause_conditionality
+        text retention_bg_ratio_clause
+    }
+    BANK_GUARANTEE {
+        uuid id PK
+        uuid work_order_id FK
+        text bg_type "mobilization|performance|retention"
+        numeric value
+        date expiry_date
+        date claim_expiry_date "SEPARATE and LATER"
+        text status "active|expiring|idle|redundant|released"
+    }
+    ANNEXURE_REQUIREMENT {
+        uuid id PK
+        uuid work_order_id FK
+        text annexure_name
+        boolean mandatory
+    }
+    ANNEXURE_SUBMISSION {
+        uuid id PK
+        uuid proforma_invoice_id FK
+        uuid annexure_requirement_id FK
+        text status "present|missing|na"
+    }
+    PROFORMA_INVOICE {
+        uuid id PK
+        uuid work_order_id FK
+        text number
+        numeric value
+        date submitted_at
+    }
+    CERTIFICATION {
+        uuid id PK
+        uuid proforma_invoice_id FK
+        text ra_bill_number
+        numeric certified_amount
+        date certified_at
+    }
+    TAX_INVOICE {
+        uuid id PK
+        uuid certification_id FK
+        text seller_gstin
+        text buyer_gstin
+        numeric cgst
+        numeric sgst
+        numeric igst
+        numeric total_value
+    }
+    PAYMENT_RECEIPT {
+        uuid id PK
+        uuid tax_invoice_id FK
+        numeric amount_received
+        date received_at
+        text source "manual|excel_import"
+    }
+    DEDUCTION_LINE {
+        uuid id PK
+        uuid tax_invoice_id FK
+        text category "tds|wct|retention|advance|cement_recovery|debris|other"
+        numeric amount
+        boolean disputed
+    }
+    DOCUMENT {
+        uuid id PK
+        uuid project_id FK
+        text sha256
+        text source
+        integer reminder_sequence_number
+    }
+    DOCUMENT_CLASSIFICATION {
+        uuid document_id FK
+        text category "routine|core_evidence|potential_dispute|bg|proforma|certified|wcc|warranty|payment_advice|delay_mom"
+        numeric confidence
+    }
+    EXTRACTED_FIELD {
+        uuid id PK
+        uuid document_id FK
+        text field_name
+        text field_value
+        text state "ai_extracted|needs_review|verified"
+        boolean is_financial
+        numeric confidence
+        text model_version
+        uuid verified_by FK
+    }
+    EXCEPTION {
+        uuid id PK
+        uuid work_order_id FK
+        text rule_id
+        text severity
+        numeric rupees_at_risk
+        text action_owner "contractor|client_pm|pmc"
+        text state "open|acknowledged|resolved|dismissed"
+        timestamp due_at
+    }
+    WCC {
+        uuid id PK
+        uuid work_order_id FK
+        date completion_date
+        date final_bill_date
+    }
+    WARRANTY {
+        uuid id PK
+        uuid work_order_id FK
+        date start_date
+        date expiry_date
+        integer tenure_months
+    }
+```
+
+---
+
+## 2. Verification state machine
+
+Three states, from the product spec. The boolean I originally proposed can't express
+"AI extracted but not yet flagged for review", which matters for confident non-financial
+fields.
+
+```mermaid
+stateDiagram-v2
+    [*] --> ai_extracted : extractor writes field
+
+    ai_extracted --> needs_review : is_financial = true<br/>(ALWAYS, any confidence)
+    ai_extracted --> needs_review : confidence < 0.90
+    ai_extracted --> verified : non-financial<br/>AND confidence >= 0.90
+
+    needs_review --> verified : contractor confirms
+    needs_review --> needs_review : contractor corrects value
+    needs_review --> [*] : contractor rejects document
+
+    verified --> needs_review : contradicted by a later document
+
+    note right of needs_review
+        Only path to verified for
+        any financial field.
+        DB constraint enforced.
+    end note
+
+    note right of verified
+        Only state visible on
+        the client dashboard.
+    end note
+```
+
+The `verified --> needs_review` transition matters and is easy to forget: if a corrected
+BG amendment arrives later, the previously verified value must be pulled back for
+re-confirmation rather than silently overwritten.
+
+---
+
+## 3. Sequence — email ingestion to verified field
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant CT as Contractor
+    participant EP as Email provider
+    participant API
+    participant S3 as Object storage
+    participant CLS as Classifier
+    participant EXT as Extractor
+    participant RQ as Review queue
+    participant DB as Postgres
+    participant RE as Rules engine
+
+    CT->>EP: Marks project email on WO/BG/invoice thread
+    EP->>API: Inbound webhook (HMAC signed)
+    API->>API: Verify signature
+    alt address matches no project
+        API->>DB: Insert inbound_quarantine
+        API-->>EP: 202 quarantined
+    else matched
+        API->>S3: Store attachments (immutable)
+        API->>DB: Insert document + sha256
+        API->>CLS: Classify
+        CLS->>DB: document_classification
+        API->>EXT: Extract (5 doc types only)
+        EXT->>EXT: Schema-constrained parse
+        alt financial field OR confidence < 0.90
+            EXT->>RQ: state = needs_review
+            RQ->>CT: Appears in Inbox Review
+            CT->>DB: Confirm or correct → verified
+        else non-financial, high confidence
+            EXT->>DB: state = verified
+        end
+        DB->>RE: Verified data changed
+        RE->>DB: Write exceptions + action_owner
+    end
+```
+
+Step ordering matters at the signature check: verify before doing anything else. An
+unsigned inbound endpoint is an open door for injecting forged documents into any
+contractor's project.
+
+---
