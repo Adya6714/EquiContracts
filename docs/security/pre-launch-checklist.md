@@ -17,7 +17,8 @@ Related: [project-map.md](../architecture/project-map.md), [runbook.md](../runbo
 
 | # | Item | Status |
 |---|---|---|
-| 4 | Enable row-level security | **Done and forced** on tenant tables. `inbound_quarantine` is deliberately excluded — mail arrives before the tenant is known. Re-verify after migrations. |
+| 4 | Enable row-level security | **Done and forced** on tenant tables including `inbound_quarantine` (no app policies/grants; insert via SECURITY DEFINER only). Re-verify after migrations. |
+| — | SECURITY DEFINER ownership | **Before go-live:** SECURITY DEFINER helper functions must be owned by a role that bypasses row security in the hosted database. Verify before go-live. |
 | 7 | Lock record access | **Done via RLS**, plus the participant model for client/PMC read access. Same boundary as #4 for this architecture. |
 | 13 | Parameterize queries | **Done.** Queries use `:param` binding via SQLAlchemy `text()`. Worth one grep to confirm no f-string SQL crept in. |
 | 8 | Block field tampering | **Done, at the DB level.** Financial fields cannot reach `verified` without `verified_by` — stronger than a usual app-layer check. |

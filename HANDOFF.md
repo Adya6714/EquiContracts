@@ -97,7 +97,7 @@ Canonical log: `DECISIONS.md` (D-001 onward). Do not invent informal D1/D5 label
 | D-029 | EquiAdvisor Facts + separate Advice mode |
 | D-030 | Docs: one index, one decision log, no BOOK |
 
-**Waiting on co-founder:** Q1–Q10 in `docs/plans/MASTER_PLAN_v2.md` (module order, who pays, Idle vs Redundant, Seals, trophy, interest, compliance score, warranty window, reminder ladders, more documents).
+**Waiting on co-founder:** Q1–Q10 in `docs/plans/MASTER_PLAN_v2.md` (module order, who pays, Idle vs Redundant, Seals, trophy, interest, compliance score, warranty window, reminder ladders, more documents). Also: is a PMC ever appointed for only part of a site? Today a PMC sees every contractor on its site.
 
 **Waiting on designer:** S8 interest 10x wrong; S15 savings vs capacity; claim expiry column; Attention state; Review screen and related missing screens.
 

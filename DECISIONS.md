@@ -831,3 +831,101 @@ router so existing import paths keep working.
 
 **Revisit if.** A webhook must run SQL before a service exists (should not happen).
 
+---
+
+## D-033 — Site/engagement rename in DB only; split policies; lock quarantine
+- **Date:** 2026-10-04
+- **Phase:** 1
+- **Decided by:** Adya (Part A approved) / Composer (Part B)
+- **Status:** accepted
+
+**Context.** D-026 chose site + engagement. Part A design needed concrete migration
+rules before renaming `project` and locking `inbound_quarantine`.
+
+**Decision.**
+1. One migration file: `0009_site_engagement_and_quarantine.sql`. Never edit 0001–0008.
+2. Rename the database and Python SQL only. Keep `/projects` URLs, web copy, and API JSON
+   field names (`project_id`, `project_code`, `inbound_email`). Repositories map
+   `engagement_id` ↔ those names.
+3. `site` and `site_member` are created only on the provisioning/system path (no UI).
+   Contractor `POST /projects` may still accept a `participants` list for JSON
+   compatibility but does not write membership.
+4. Rename `project_id` → `engagement_id` on child tables. Helpers are
+   `owns_engagement` / `can_read_engagement` only (no thin wrappers for old names).
+5. Every policy recreated in 0009 is split: one SELECT policy, separate INSERT / UPDATE /
+   DELETE. No `FOR ALL` policies remain after 0009.
+6. Triggers refuse a site whose owner org is not `client`, and a `site_member` whose org
+   is not `client` or `pmc` (role must match `org_type`). `org.org_type` is immutable after
+   insert (`enforce_org_type_immutable`).
+7. Never `DROP … CASCADE`. Drop each policy by name, then dependent functions, then
+   recreate. CI `no_rls_bypass` still bans CASCADE / BYPASSRLS / DISABLE RLS; named
+   `DROP POLICY` is allowed so policies can be recreated.
+8. `can_read_engagement` = owns engagement OR caller's org owns the engagement's site OR
+   caller's org is a `site_member`. Contractors cannot be site members, so membership
+   never exposes peer contractors.
+9. `link_engagement_to_site(engagement_id, site_id)` is SECURITY DEFINER, EXECUTE only for
+   `equicontracts_system` (not the app role). Works only when `site_id` is null; no relink.
+10. `inbound_quarantine`: ENABLE + FORCE RLS, no policies, **no grants** to
+    `equicontracts_app` (SELECT denied). Insert remains `quarantine_inbound` SECURITY
+    DEFINER for the system role.
+11. App role cannot write `engagement.site_id`: table INSERT/UPDATE revoked; INSERT
+    columns exclude `site_id`; UPDATE columns only those app code actually updates
+    (currently none). `engagement_update` WITH CHECK also requires
+    `owner_org_id = current_org_id()`. Linking still uses SECURITY DEFINER.
+
+**Why this approach.** Matches D-026 without a web rename; keeps inbound fail-closed;
+makes policy inventory (`cmd = 'ALL'`) enforceable in tests; site linkage stays
+provisioning-only at the privilege layer.
+
+**Trade-offs accepted.** `/projects` JSON still says "project" while SQL says engagement;
+participants on create are ignored until a provisioning link exists; app cannot SELECT
+quarantine (permission denied, not empty set).
+
+**Revisit if.** Public API should rename to `/engagements`, or clients must attach
+membership at contractor create time.
+
+---
+
+## D-034 — Agent worker role, claim function, proposal state via review only
+- **Date:** 2026-10-04
+- **Phase:** 1
+- **Decided by:** Adya (Step 5 Part A approved) / Composer
+- **Status:** accepted
+
+**Context.** Step 5 needs durable events/runs without giving the worker full app
+write powers or letting agents update proposal state directly.
+
+**Decision.**
+1. New DB role `equicontracts_agent` for worker sessions: org-pinned via
+   `set_config`, same RLS; may INSERT `agent_run` / `agent_step` /
+   `agent_proposal` and UPDATE limited run/event status columns; may not write
+   `review_decision`, `agent_proposal` (UPDATE), or domain tables like
+   `extracted_field`. No SELECT on `app_user`.
+2. Cross-org claim via `claim_next_event(timeout, max_attempts)` SECURITY DEFINER
+   (SKIP LOCKED + reclaim stuck `claimed` after timeout; default max_attempts=3).
+   Pending or stuck-claimed events with `attempts >= max_attempts` become
+   `failed` with `last_error = 'max attempts reached'` instead of being claimed.
+   EXECUTE only for `equicontracts_agent`.
+3. `agent_proposal.state` changes only through an AFTER INSERT trigger on
+   `review_decision`. No role gets UPDATE on `agent_proposal`.
+4. `review_decision.decided_by` NOT NULL; trigger refuses a user whose org is
+   not the decision's `org_id`. Same-org parent checks on every agent INSERT
+   policy (and a `review_decision` trigger for proposal/decider orgs).
+5. `agent_run` UNIQUE (`event_id`, `agent_name`, `attempt`). Failed runs never
+   mark the event `processed`; retries insert a new attempt.
+6. Worker lives in `apps/api/app/workers/`. `packages/agents` (Part B) never
+   touches the database. Proposals are created by a runtime function (Part B)
+   that looks up autonomy level; the agent never chooses the level.
+7. `equicontracts_app` has SELECT + INSERT on `event` only — no UPDATE.
+
+**Why this approach.** Separates claim (cross-org) from run work (org-scoped);
+keeps human decisions the only path that advances proposal state; caps retries
+in the claim path so poison events stop looping.
+
+**Trade-offs accepted.** Extra role and connection string; Part A marks an event
+processed when the single routed agent succeeds (multi-agent fan-out completeness
+in Part B).
+
+**Revisit if.** Fan-out requires waiting on several agent names before
+`processed`, or claim should move to a dedicated queue table.
+

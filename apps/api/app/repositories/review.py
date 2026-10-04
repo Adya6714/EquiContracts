@@ -50,7 +50,7 @@ def lock_field_for_verify(session: Session, *, field_id: UUID) -> dict[str, Any]
                 SELECT
                   ef.id, ef.document_id, ef.field_name, ef.field_value,
                   ef.is_financial, ef.confidence, ef.model_version,
-                  d.project_id
+                  d.engagement_id AS project_id
                 FROM extracted_field ef
                 JOIN document d ON d.id = ef.document_id
                 WHERE ef.id = :field_id

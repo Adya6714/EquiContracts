@@ -20,8 +20,9 @@ class AccessFixture:
     client: UUID
     pmc: UUID
     user_a: UUID
-    project_a: UUID
-    project_b: UUID
+    site_id: UUID
+    project_a: UUID  # engagement A (JSON/API still say project)
+    project_b: UUID  # engagement B
     document_a: UUID
     verified_field: UUID
     review_field: UUID
@@ -29,7 +30,7 @@ class AccessFixture:
 
 @pytest.fixture()
 def access_data() -> Iterator[AccessFixture]:
-    ids = [uuid4() for _ in range(10)]
+    ids = [uuid4() for _ in range(11)]
     data = AccessFixture(*ids)
     suffix = uuid4().hex[:10]
 
@@ -62,15 +63,35 @@ def access_data() -> Iterator[AccessFixture]:
         admin.execute(
             text(
                 """
-                INSERT INTO project (
-                  id, owner_org_id, name, project_code, inbound_alias
+                INSERT INTO site (id, owner_org_id, name, city)
+                VALUES (:site_id, :client, 'Fixture Site', 'Mumbai')
+                """
+            ),
+            data.__dict__,
+        )
+        admin.execute(
+            text(
+                """
+                INSERT INTO site_member (site_id, org_id, role)
+                VALUES
+                  (:site_id, :client, 'client'),
+                  (:site_id, :pmc, 'pmc')
+                """
+            ),
+            data.__dict__,
+        )
+        admin.execute(
+            text(
+                """
+                INSERT INTO engagement (
+                  id, owner_org_id, site_id, name, project_code, inbound_alias
                 ) VALUES
                   (
-                    :project_a, :contractor_a, 'A Project',
+                    :project_a, :contractor_a, :site_id, 'A Project',
                     :code_a, :alias_a
                   ),
                   (
-                    :project_b, :contractor_b, 'B Project',
+                    :project_b, :contractor_b, :site_id, 'B Project',
                     :code_b, :alias_b
                   )
                 """
@@ -86,20 +107,8 @@ def access_data() -> Iterator[AccessFixture]:
         admin.execute(
             text(
                 """
-                INSERT INTO project_participant (project_id, org_id, role)
-                VALUES
-                  (:project_a, :client, 'client'),
-                  (:project_a, :pmc, 'pmc'),
-                  (:project_b, :client, 'client')
-                """
-            ),
-            data.__dict__,
-        )
-        admin.execute(
-            text(
-                """
                 INSERT INTO document (
-                  id, project_id, filename, storage_uri, sha256, source
+                  id, engagement_id, filename, storage_uri, sha256, source
                 )
                 VALUES (
                   :document_a, :project_a, 'fixture.pdf',
@@ -133,9 +142,54 @@ def access_data() -> Iterator[AccessFixture]:
         yield data
     finally:
         admin.rollback()
+        # Agent foundation rows may reference engagement; clear before delete.
         admin.execute(
-            text("DELETE FROM project WHERE id IN (:a, :b)"),
+            text(
+                """
+                DELETE FROM review_decision
+                WHERE org_id IN (:a, :b)
+                """
+            ),
+            {"a": data.contractor_a, "b": data.contractor_b},
+        )
+        admin.execute(
+            text(
+                """
+                DELETE FROM agent_proposal
+                WHERE org_id IN (:a, :b)
+                """
+            ),
+            {"a": data.contractor_a, "b": data.contractor_b},
+        )
+        admin.execute(
+            text(
+                """
+                DELETE FROM agent_step
+                WHERE org_id IN (:a, :b)
+                """
+            ),
+            {"a": data.contractor_a, "b": data.contractor_b},
+        )
+        admin.execute(
+            text(
+                """
+                DELETE FROM agent_run
+                WHERE org_id IN (:a, :b)
+                """
+            ),
+            {"a": data.contractor_a, "b": data.contractor_b},
+        )
+        admin.execute(
+            text("DELETE FROM event WHERE org_id IN (:a, :b)"),
+            {"a": data.contractor_a, "b": data.contractor_b},
+        )
+        admin.execute(
+            text("DELETE FROM engagement WHERE id IN (:a, :b)"),
             {"a": data.project_a, "b": data.project_b},
+        )
+        admin.execute(
+            text("DELETE FROM site WHERE id = :site_id"),
+            {"site_id": data.site_id},
         )
         admin.execute(
             text("DELETE FROM app_user WHERE id = :user_a"),

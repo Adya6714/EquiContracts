@@ -137,7 +137,7 @@ aren't testable against fixed dates, which is exactly what you need for expiry l
 flowchart TD
     A["GET /client/dashboard"] --> B["Principal: org_type in (client, pmc)"]
     B --> C["org_scoped_session"]
-    C --> D["Projects via project_participant<br/>(RLS read policy)"]
+    C --> D["Engagements via site / site_member<br/>(can_read_engagement)"]
     D --> E["Exceptions WHERE state = verified"]
     E --> F["Aggregate: healthy / critical / needs_verification /<br/>pending_contractor / pending_client_pmc / resolved"]
     F --> G["Response — no raw documents, no internal notes"]
@@ -152,7 +152,9 @@ Which module may write which table. An unexpected write in a diff is a review fl
 | Table                                                               | Written by                                      | Never written by                |
 | ------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------- |
 | `org`, `app_user`                                                   | `provisioning_session` (signup only)            | any router                      |
-| `project`, `project_participant`                                    | `services/projects` via `repositories/projects` | client/PMC principals           |
+| `site`, `site_member`                                               | provisioning / admin only (`link_engagement_to_site` is system SECURITY DEFINER) | app role writes, contractor UI  |
+| `engagement` (HTTP still `/projects`)                               | `services/projects` via `repositories/projects` | client/PMC principals           |
+| `engagement_module`                                                 | `services/projects` (module toggles)            | client/PMC principals           |
 | `document`                                                          | `routers/inbound`, `routers/documents` (upload) | rules, generation               |
 | `document_classification`                                           | `packages/extraction/classifier`                | routers                         |
 | `extracted_field`                                                   | `packages/extraction/*`, `routers/review`       | rules, generation               |
@@ -160,7 +162,10 @@ Which module may write which table. An unexpected write in a diff is a review fl
 | `bank_guarantee`, `proforma_invoice`, `certification`               | promotion from verified `extracted_field` only  | extraction directly             |
 | `exception`                                                         | `apps/api/app/rules/*`                          | extraction, generation, routers |
 | `event_log`                                                         | `core/event_log.append()` only                  | anything else                   |
-| `inbound_quarantine`                                                | `routers/inbound`                               | anything else                   |
+| `inbound_quarantine`                                                | `quarantine_inbound` SECURITY DEFINER (system)  | app role (FORCE RLS, no policies) |
+| `event`                                                             | producers via `services/agent_events`; claim via `claim_next_event` (agent role) | client/PMC; app calling claim |
+| `agent_run`, `agent_step`, `agent_proposal`                         | agent-role worker / runtime (Part B) via services/repos | updating `agent_proposal` (trigger only) |
+| `review_decision`                                                   | contractor app session via `services/agent_events` | agent role; anonymous |
 | `resolution_statement`                                              | `apps/api/app/generation/*`                     | rules                           |
 
 **The row worth internalising:** domain tables (`bank_guarantee` and friends) are never
@@ -293,3 +298,36 @@ Format:
 - **Not changed:** existing behavioural tests, migrations, web, extraction
 - **Verify run:** `make verify` — All checks passed (48 pytest; 11 agent-rule checks)
 - **Decision logged:** D-032
+
+### 2026-10-04 · session · Cursor · agent foundation Part A (schema + claim)
+
+- **Task:** `0010` agent tables/RLS, `equicontracts_agent` role, `claim_next_event`,
+  repos/services/worker claim path (no `packages/agents` yet)
+- **Files touched:** `packages/db/migrations/0010_agent_foundation.sql`,
+  `packages/db/init/00-app-role.sh`, `apps/api/app/core/{db,config}.py`,
+  `apps/api/app/repositories/agent_events.py`, `apps/api/app/services/agent_events.py`,
+  `apps/api/app/workers/**`, `apps/api/tests/test_agent_foundation.py`,
+  `DECISIONS.md`, `FLOW.md`, `docs/architecture/project-map.md`, compose/CI/env example
+- **New call path:** worker → `claim_next_event()` (agent role, no org) →
+  `agent_org_scoped_session(org_id)` → services/repos for runs/steps/proposals;
+  human review → app session INSERT `review_decision` → trigger updates proposal state
+- **Not changed:** `packages/agents/` (not created), migrations 0001–0009, web, extraction
+- **Verify run:** `make verify` — All checks passed (77 pytest)
+- **Decision logged:** D-034
+
+### 2026-10-04 · session · Cursor · site/engagement + lock quarantine
+
+- **Task:** Apply D-026/D-033: `site`/`site_member`/`engagement`, rename child FKs,
+  split policies, lock `inbound_quarantine`, `link_engagement_to_site`
+- **Files touched:** `packages/db/migrations/0009_site_engagement_and_quarantine.sql`,
+  `apps/api/app/repositories/**`, `apps/api/app/services/projects.py`,
+  `apps/api/app/core/event_log.py`, `apps/api/tests/**`,
+  `scripts/check_agent_rules.py`, `DECISIONS.md`, `FLOW.md`,
+  `docs/architecture/project-map.md`
+- **New call path:** `/projects*` still → services/repos, SQL targets `engagement`;
+  client/PMC read via `can_read_engagement` (site owner or `site_member`);
+  quarantine insert still `privileged_session` → `quarantine_inbound`;
+  site link only `link_engagement_to_site` (system/admin)
+- **Not changed:** `apps/web/`, `packages/extraction/`, `eval/`, migrations 0001–0008
+- **Verify run:** `make verify` — All checks passed (58 pytest; 11 agent-rule checks)
+- **Decision logged:** D-033

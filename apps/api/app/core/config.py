@@ -22,6 +22,9 @@ class Settings(BaseSettings):
         "postgresql+psycopg://equicontracts_system:localdev"
         "@localhost:5432/equicontracts"
     )
+    agent_database_url: str = (
+        "postgresql+psycopg://equicontracts_agent:localdev@localhost:5432/equicontracts"
+    )
     s3_endpoint_url: str = "http://localhost:9000"
     s3_bucket: str = "equicontracts-documents"
     s3_access_key: str = "minioadmin"

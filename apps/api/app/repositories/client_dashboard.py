@@ -16,18 +16,18 @@ def list_verified_project_summaries(session: Session) -> list[dict[str, Any]]:
             text(
                 """
                 SELECT
-                  p.id,
-                  p.name,
-                  p.project_code,
+                  e.id,
+                  e.name,
+                  e.project_code,
                   count(ef.id)::integer AS verified_field_count
-                FROM project p
-                LEFT JOIN document d ON d.project_id = p.id
+                FROM engagement e
+                LEFT JOIN document d ON d.engagement_id = e.id
                 LEFT JOIN extracted_field ef
                   ON ef.document_id = d.id
                  AND ef.state = 'verified'
                  AND ef.superseded_by IS NULL
-                GROUP BY p.id, p.name, p.project_code
-                ORDER BY p.name
+                GROUP BY e.id, e.name, e.project_code
+                ORDER BY e.name
                 """
             )
         )

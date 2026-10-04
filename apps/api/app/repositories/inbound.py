@@ -2,6 +2,8 @@
 
 Caller supplies the session: privileged (system) for resolve/quarantine,
 org-scoped app role for document insert.
+
+JSON/service still use project_id; columns are engagement_id.
 """
 
 from __future__ import annotations
@@ -19,7 +21,7 @@ def resolve_project_by_alias(session: Session, *, alias: str) -> dict[str, Any] 
             text(
                 """
                 SELECT id, owner_org_id
-                FROM resolve_inbound_project(:alias)
+                FROM resolve_inbound_engagement(:alias)
                 """
             ),
             {"alias": alias},
@@ -62,20 +64,20 @@ def upsert_inbound_document(
         text(
             """
             INSERT INTO document (
-              project_id, filename, storage_uri, sha256, source,
+              engagement_id, filename, storage_uri, sha256, source,
               sender_email, reminder_sequence_number
             )
             VALUES (
-              :project_id, :filename, :storage_uri, :sha256,
+              :engagement_id, :filename, :storage_uri, :sha256,
               'email_forward', :sender_email, :reminder_sequence_number
             )
-            ON CONFLICT (project_id, sha256)
+            ON CONFLICT (engagement_id, sha256)
             DO UPDATE SET received_at = EXCLUDED.received_at
             RETURNING id
             """
         ),
         {
-            "project_id": project_id,
+            "engagement_id": project_id,
             "filename": filename,
             "storage_uri": storage_uri,
             "sha256": sha256,

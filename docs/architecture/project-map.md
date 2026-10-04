@@ -69,14 +69,16 @@ purely deterministic — by the time rules run, everything they read has been co
 
 | File | Creates | Why it matters |
 |---|---|---|
-| `0001_orgs_and_access.sql` | `org`, `app_user`, `project`, `project_participant`, `project_module` | The tenancy foundation. `project_participant` is how clients/PMCs get read access without becoming tenants of contractor data. |
-| `0002_rls.sql` | Policies and helpers (`can_read_project`, `owns_project`) | **The security boundary.** Turns on and forces Row-Level Security on every tenant table. |
+| `0001_orgs_and_access.sql` | `org`, `app_user`, `project`, `project_participant`, `project_module` | Original tenancy foundation (renamed in 0009). |
+| `0002_rls.sql` | Policies and helpers (`can_read_project`, `owns_project`) | Original RLS (helpers replaced in 0009). |
 | `0003_documents_extraction.sql` | `document`, `document_classification`, `extracted_field`, `inbound_quarantine`, `event_log` | Documents and the AI-output-awaiting-confirmation layer. |
 | `0004_work_orders_annexures.sql` | `work_order`, `annexure_requirement`, `proforma_invoice`, `annexure_submission` | Contracts and their required-document checklists. |
 | `0005_bg_verify.sql` | `bank_guarantee`, `bg_event` | Guarantees with the dual-date constraint. |
 | `0006_milestone_chain.sql` | *(stub — Phase 2)* | Certification, payment, WCC, warranty. |
 | `0007_document_participant_read.sql` | Alters document-chain SELECT policies | Participants can read documents for dashboard joins; writes stay owner-only. |
 | `0008_inbound_alias.sql` | Renames `inbound_email` → `inbound_alias`; updates resolve fn | Shared inbox plus-addressing (`projects+{alias}@domain`). |
+| `0009_site_engagement_and_quarantine.sql` | `site`, `site_member`; rename `project`→`engagement`, `project_module`→`engagement_module`; `project_id`→`engagement_id`; `owns_engagement` / `can_read_engagement`; `link_engagement_to_site`; lock `inbound_quarantine` | **Current tenancy model (D-026/D-033).** Client/PMC read via site; contractors stay isolated; no `FOR ALL` policies. |
+| `0010_agent_foundation.sql` | `event`, `agent_run`, `agent_step`, `agent_proposal`, `review_decision`; `equicontracts_agent`; `claim_next_event` | **Agent foundation (D-034).** Worker claims cross-org; runs are org-scoped; proposal state only via `review_decision` trigger. |
 | *(future)* `exceptions` / resolution tables | Phase 1+ | Needs-attention flags and later domain tables. |
 
 **The two constraints worth knowing by name:**
@@ -94,7 +96,7 @@ bg_claim_expiry_after_expiry
 | File | What it does |
 |---|---|
 | `config.py` | Reads every setting from environment variables. No secrets in code. |
-| `db.py` | **Three** session types: `org_scoped_session` (normal), `privileged_session` (pre-tenant reads like inbound email routing), `provisioning_session` (creating orgs — the only path that can, deliberately narrow). |
+| `db.py` | **Four** session types: `org_scoped_session` (app), `agent_org_scoped_session` (worker), `privileged_session` (system inbound), `provisioning_session` (admin org create). |
 | `auth.py` | Figures out who's making a request. **Currently a header stub — must be real auth before deployment.** |
 | `storage.py` | Puts files in S3 with content-addressed keys, generates 5-minute signed URLs. Bucket is never public. |
 | `financial_fields.py` | The list of fields that always need human confirmation. Deliberately over-inclusive — a false positive costs 10 seconds of review, a false negative commits a wrong BG expiry. |
@@ -233,13 +235,14 @@ Canonical decision log: [DECISIONS.md](../../DECISIONS.md).
 
 ## Part 7 — Current state and the path forward
 
-**Done (code):** schema through BG tables · RLS · API core · four routers · walking web
-skeleton · CI guardrails · rule engine loader · plus-address inbound · BG extractor with
+**Done (code):** schema through BG tables · site/engagement + locked quarantine (0009) ·
+RLS · API core · four routers on services/repositories · walking web skeleton · CI
+guardrails · rule engine loader · plus-address inbound · BG extractor with
 provider-selectable LLM settings · GECPL eval baseline 4/4 (`gemini-2.5-flash`) ·
 FLOW/DECISIONS living docs.
 
-**Not built yet:** services/repositories split · site/engagement model · agents · Intake ·
-promotion beyond extractor rows · real auth (header stub remains) · Tracks B/C.
+**Not built yet:** agents · Intake · promotion beyond extractor rows · real auth
+(header stub remains) · Tracks B/C · web rename away from `/projects`.
 
 **Immediate path:** follow [START_HERE.md](../plans/START_HERE.md) steps 2→10.
 Step 1 (BG extractor baseline) is done.
@@ -337,24 +340,24 @@ flowchart TB
     end
 
     subgraph OrgB["Org: Lodha — type client"]
-        VB["Read access via<br/>project_participant"]
+        VB["Read access via<br/>site owner / site_member"]
     end
 
     subgraph OrgC["Org: XYZ PMC — type pmc"]
-        VC["Read access via<br/>project_participant"]
+        VC["Read access via<br/>site_member"]
     end
 
-    PA -->|"participant row<br/>role=client<br/>scope=verified_only"| VB
-    PA -->|"participant row<br/>role=pmc<br/>scope=verified_only"| VC
+    PA -->|"site + site_member<br/>role=client<br/>scope=verified_only"| VB
+    PA -->|"site_member<br/>role=pmc<br/>scope=verified_only"| VC
 
     PA -.->|"NO access"| OTHER["Org: Rival Contractor"]
 ```
 
 Three access rules the schema must enforce:
 
-1. A contractor sees **only their own** projects. Never another contractor's, even on the
-   same client's site.
-2. A client sees **verified data only**, across all contractors on their projects.
+1. A contractor sees **only their own** engagements. Never another contractor's, even on
+   the same client's site.
+2. A client sees **verified data only**, across all contractors on sites they own or join.
 3. Internal contractor notes are never visible to the client, regardless of role.
 
 Rule 1 is the existential one. Two subcontractors on the same tower seeing each other's

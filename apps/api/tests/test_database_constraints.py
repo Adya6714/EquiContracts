@@ -41,13 +41,13 @@ def test_bg_dual_dates_accept_real_values_and_reject_inverted(access_data) -> No
         session.execute(
             text(
                 """
-                INSERT INTO work_order (id, project_id, wo_number)
-                VALUES (:id, :project_id, :number)
+                INSERT INTO work_order (id, engagement_id, wo_number)
+                VALUES (:id, :engagement_id, :number)
                 """
             ),
             {
                 "id": work_order_id,
-                "project_id": access_data.project_a,
+                "engagement_id": access_data.project_a,
                 "number": f"WO-{uuid4().hex}",
             },
         )

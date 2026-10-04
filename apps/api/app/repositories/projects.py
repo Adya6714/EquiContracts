@@ -1,4 +1,9 @@
-"""SQL access for contractor projects. Session is always caller-supplied."""
+"""SQL access for contractor engagements.
+
+HTTP/JSON still say "project"; this repository talks to `engagement` /
+`engagement_module` and maps columns to the existing JSON names.
+Session is always caller-supplied.
+"""
 
 from __future__ import annotations
 
@@ -23,7 +28,7 @@ def insert_project(
         session.execute(
             text(
                 """
-                INSERT INTO project (
+                INSERT INTO engagement (
                   owner_org_id, name, project_code, inbound_alias
                 )
                 VALUES (
@@ -45,28 +50,6 @@ def insert_project(
     return dict(row)
 
 
-def insert_participant(
-    session: Session,
-    *,
-    project_id: UUID,
-    org_id: UUID,
-    role: str,
-) -> None:
-    session.execute(
-        text(
-            """
-            INSERT INTO project_participant (project_id, org_id, role)
-            VALUES (:project_id, :org_id, :role)
-            """
-        ),
-        {
-            "project_id": project_id,
-            "org_id": org_id,
-            "role": role,
-        },
-    )
-
-
 def insert_work_order(
     session: Session,
     *,
@@ -80,17 +63,17 @@ def insert_work_order(
         text(
             """
             INSERT INTO work_order (
-              project_id, wo_number, trade, value,
+              engagement_id, wo_number, trade, value,
               certification_sla_days
             )
             VALUES (
-              :project_id, :wo_number, :trade, :value,
+              :engagement_id, :wo_number, :trade, :value,
               :certification_sla_days
             )
             """
         ),
         {
-            "project_id": project_id,
+            "engagement_id": project_id,
             "wo_number": wo_number,
             "trade": trade,
             "value": value,
@@ -108,11 +91,11 @@ def insert_module(
     session.execute(
         text(
             """
-            INSERT INTO project_module (project_id, module_name)
-            VALUES (:project_id, :module_name)
+            INSERT INTO engagement_module (engagement_id, module_name)
+            VALUES (:engagement_id, :module_name)
             """
         ),
-        {"project_id": project_id, "module_name": module_name},
+        {"engagement_id": project_id, "module_name": module_name},
     )
 
 
@@ -122,7 +105,7 @@ def list_owned_projects(session: Session) -> list[dict[str, Any]]:
             text(
                 """
                 SELECT id, name, project_code, inbound_alias
-                FROM project
+                FROM engagement
                 ORDER BY created_at DESC
                 """
             )
@@ -145,14 +128,16 @@ def upsert_module(
         session.execute(
             text(
                 """
-                INSERT INTO project_module (project_id, module_name, enabled)
-                VALUES (:project_id, :module_name, :enabled)
-                ON CONFLICT (project_id, module_name)
+                INSERT INTO engagement_module (
+                  engagement_id, module_name, enabled
+                )
+                VALUES (:engagement_id, :module_name, :enabled)
+                ON CONFLICT (engagement_id, module_name)
                 DO UPDATE SET enabled = EXCLUDED.enabled
                 """
             ),
             {
-                "project_id": project_id,
+                "engagement_id": project_id,
                 "module_name": module_name,
                 "enabled": enabled,
             },

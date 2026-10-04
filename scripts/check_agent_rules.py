@@ -115,8 +115,12 @@ def no_float_money() -> list[str]:
 
 
 def no_rls_bypass() -> list[str]:
+    # Named DROP POLICY is required when recreating policies (0009+).
+    # CASCADE and RLS disable / BYPASSRLS remain forbidden.
     pattern = re.compile(
-        r"\b(?:BYPASSRLS|DISABLE\s+ROW\s+LEVEL\s+SECURITY|DROP\s+POLICY)\b",
+        r"\b(?:BYPASSRLS|DISABLE\s+ROW\s+LEVEL\s+SECURITY|"
+        r"DROP\s+(?:POLICY|FUNCTION|TABLE|VIEW|INDEX|TRIGGER|TYPE)"
+        r"\s+.*\bCASCADE\b)\b",
         re.IGNORECASE,
     )
     return [

@@ -24,13 +24,14 @@ def append_event(
             """
             SELECT event_hash
             FROM event_log
-            WHERE project_id = :project_id
+            WHERE engagement_id = :engagement_id
             ORDER BY created_at DESC, id DESC
             LIMIT 1
             """
         ),
-        {"project_id": project_id},
+        {"engagement_id": project_id},
     ).scalar_one_or_none()
+    # Hash payload keeps project_id key for chain stability / API naming.
     canonical = json.dumps(
         {
             "project_id": str(project_id),
@@ -49,17 +50,17 @@ def append_event(
         text(
             """
             INSERT INTO event_log (
-              project_id, event_type, actor_user_id, entity_type, entity_id,
+              engagement_id, event_type, actor_user_id, entity_type, entity_id,
               metadata, previous_hash, event_hash
             )
             VALUES (
-              :project_id, :event_type, :actor_user_id, :entity_type, :entity_id,
-              CAST(:metadata AS jsonb), :previous_hash, :event_hash
+              :engagement_id, :event_type, :actor_user_id, :entity_type,
+              :entity_id, CAST(:metadata AS jsonb), :previous_hash, :event_hash
             )
             """
         ),
         {
-            "project_id": project_id,
+            "engagement_id": project_id,
             "event_type": event_type,
             "actor_user_id": actor_user_id,
             "entity_type": entity_type,

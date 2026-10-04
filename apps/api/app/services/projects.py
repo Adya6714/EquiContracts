@@ -62,6 +62,10 @@ def create_project(
     inbound_alias = inbound_alias_for(project_code, name)
     inbound_email = display_inbound_address(inbound_alias)
 
+    # participants remain in the JSON contract for compatibility; site_member
+    # rows are provisioning-only (D-033). Contractor-led create leaves site_id null.
+    _ = participants
+
     try:
         row = projects_repo.insert_project(
             session,
@@ -71,13 +75,6 @@ def create_project(
             inbound_alias=inbound_alias,
         )
         project_id = row["id"]
-        for participant in participants:
-            projects_repo.insert_participant(
-                session,
-                project_id=project_id,
-                org_id=participant.org_id,
-                role=participant.role,
-            )
         for work_order in work_orders:
             projects_repo.insert_work_order(
                 session,

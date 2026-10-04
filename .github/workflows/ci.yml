@@ -29,9 +29,11 @@ jobs:
       POSTGRES_DB: equicontracts
       APP_DATABASE_PASSWORD: localdev
       SYSTEM_DATABASE_PASSWORD: localdev
+      AGENT_DATABASE_PASSWORD: localdev
       DATABASE_URL: postgresql+psycopg://equicontracts_app:localdev@localhost:5432/equicontracts
       ADMIN_DATABASE_URL: postgresql+psycopg://postgres:localdev@localhost:5432/equicontracts
       SYSTEM_DATABASE_URL: postgresql+psycopg://equicontracts_system:localdev@localhost:5432/equicontracts
+      AGENT_DATABASE_URL: postgresql+psycopg://equicontracts_agent:localdev@localhost:5432/equicontracts
 
     steps:
       - uses: actions/checkout@v4
