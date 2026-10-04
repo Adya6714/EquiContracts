@@ -5,10 +5,10 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import text
 
 from ..core.auth import Principal, get_principal
 from ..core.db import org_scoped_session
+from ..services import client_dashboard as client_dashboard_service
 
 router = APIRouter(prefix="/client", tags=["client"])
 
@@ -31,27 +31,13 @@ def overview(
         )
 
     with org_scoped_session(principal.org_id) as session:
-        rows = (
-            session.execute(
-                text(
-                    """
-                    SELECT
-                      p.id,
-                      p.name,
-                      p.project_code,
-                      count(ef.id)::integer AS verified_field_count
-                    FROM project p
-                    LEFT JOIN document d ON d.project_id = p.id
-                    LEFT JOIN extracted_field ef
-                      ON ef.document_id = d.id
-                     AND ef.state = 'verified'
-                     AND ef.superseded_by IS NULL
-                    GROUP BY p.id, p.name, p.project_code
-                    ORDER BY p.name
-                    """
-                )
-            )
-            .mappings()
-            .all()
+        rows = client_dashboard_service.list_project_summaries(session)
+    return [
+        ProjectSummary(
+            id=row.id,
+            name=row.name,
+            project_code=row.project_code,
+            verified_field_count=row.verified_field_count,
         )
-    return [ProjectSummary(**row) for row in rows]
+        for row in rows
+    ]

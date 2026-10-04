@@ -172,8 +172,15 @@ def rules_engine_deterministic() -> list[str]:
 
 
 def client_routes_verified_only() -> list[str]:
+    """Client SQL (router or repository) that touches extracted_field must filter verified."""
+
     failures: list[str] = []
-    for path in files_under("apps/api/app/routers", suffixes={".py"}):
+    for path in files_under(
+        "apps/api/app/routers",
+        "apps/api/app/repositories",
+        "apps/api/app/services",
+        suffixes={".py"},
+    ):
         if "client" not in path.name:
             continue
         content = path.read_text()
@@ -194,6 +201,33 @@ def tenant_routes_are_scoped() -> list[str]:
             marker in content for marker in ("org_scoped_session", "privileged_session")
         ):
             failures.append(f"{relative(path)}: database access has no scoped session")
+    return failures
+
+
+def routers_have_no_sql(routers_dir: Path | None = None) -> list[str]:
+    """Routers must not import sqlalchemy.text or call .execute()."""
+
+    root = routers_dir if routers_dir is not None else ROOT / "apps/api/app/routers"
+    if not root.exists():
+        return []
+    text_import = re.compile(
+        r"(?:from\s+sqlalchemy[\w.]*\s+import\s+[^\n]*\btext\b)"
+        r"|(?:import\s+sqlalchemy\.text\b)"
+    )
+    execute_call = re.compile(r"\.execute\s*\(")
+    failures: list[str] = []
+    for path in sorted(root.rglob("*.py")):
+        if any(part in {"__pycache__", ".venv"} for part in path.parts):
+            continue
+        try:
+            rel = str(path.relative_to(ROOT))
+        except ValueError:
+            rel = str(path)
+        for number, line in non_comment_lines(path):
+            if text_import.search(line):
+                failures.append(f"{rel}:{number}: router imports sqlalchemy text")
+            if execute_call.search(line):
+                failures.append(f"{rel}:{number}: router calls .execute()")
     return failures
 
 
@@ -240,6 +274,7 @@ CHECKS: tuple[tuple[str, Callable[[], list[str]]], ...] = (
     ("rules_engine_deterministic", rules_engine_deterministic),
     ("client_routes_verified_only", client_routes_verified_only),
     ("tenant_routes_are_scoped", tenant_routes_are_scoped),
+    ("routers_have_no_sql", routers_have_no_sql),
     ("decisions_log_updated", decisions_log_updated),
 )
 

@@ -16,13 +16,13 @@ Every way execution begins. If it isn't listed here, it doesn't exist.
 | Entry point                                  | Trigger                 | Handler                              | Auth                 | Org scoping                                      |
 | -------------------------------------------- | ----------------------- | ------------------------------------ | -------------------- | ------------------------------------------------ |
 | `GET /health`                                | HTTP                    | `main.health`                        | none                 | none                                             |
-| `POST /projects`                             | Contractor UI           | `routers/projects.create_project`    | contractor_admin     | `org_scoped_session`                             |
-| `GET /projects`                              | Contractor UI           | `routers/projects.list_projects`     | any contractor role  | `org_scoped_session`                             |
-| `PATCH /projects/{id}/modules`               | Contractor UI           | `routers/projects.toggle_module`     | contractor_admin     | `org_scoped_session`                             |
-| `POST /inbound/email`                        | Email provider webhook  | `routers/inbound.receive_email`      | **HMAC signature**   | `privileged_session` → then `org_scoped_session` |
-| `GET /review/queue`                          | Contractor UI           | `routers/review.queue`               | contractor\_\*       | `org_scoped_session`                             |
-| `POST /review/fields/{id}/verify`            | Contractor UI           | `routers/review.verify_field`        | contractor\_\*       | `org_scoped_session`                             |
-| `GET /client/dashboard`                      | Client UI               | `routers/client_dashboard.overview`  | client\_\*, pmc_user | `org_scoped_session` + **verified-only filter**  |
+| `POST /projects`                             | Contractor UI           | `routers/projects.create_project` → `services/projects.create_project` → `repositories/projects` | contractor_admin     | `org_scoped_session` (passed into service/repo) |
+| `GET /projects`                              | Contractor UI           | `routers/projects.list_projects` → `services/projects.list_projects` → `repositories/projects` | any contractor role  | `org_scoped_session` (passed into service/repo) |
+| `PATCH /projects/{id}/modules`               | Contractor UI           | `routers/projects.toggle_module` → `services/projects.toggle_module` → `repositories/projects` | contractor_admin     | `org_scoped_session` (passed into service/repo) |
+| `POST /inbound/email`                        | Email provider webhook  | `routers/inbound.receive_email` → `services/inbound` → `repositories/inbound` | **HMAC signature**   | `privileged_session` (system) then `org_scoped_session` (passed in) |
+| `GET /review/queue`                          | Contractor UI           | `routers/review.queue` → `services/review` → `repositories/review` | contractor\_\*       | `org_scoped_session` (passed into service/repo) |
+| `POST /review/fields/{id}/verify`            | Contractor UI           | `routers/review.verify_field` → `services/review` → `repositories/review` | contractor\_\*       | `org_scoped_session` (passed into service/repo) |
+| `GET /client/dashboard`                      | Client UI               | `routers/client_dashboard.overview` → `services/client_dashboard` → `repositories/client_dashboard` | client\_\*, pmc_user | `org_scoped_session` + **verified-only filter in repository SQL** |
 | `python -m packages.extraction.eval_harness` | CLI                     | `eval_harness.main`                  | none                 | no DB                                            |
 | `python -m packages.extraction.eval_harness --case gecpl-bg-invocation` | CLI | `eval_harness.run_case` → `bg_extractor.extract_bank_guarantee_from_path` → `_call_model` → `llm_config.get_llm_settings` → Anthropic SDK or OpenAI-compatible client | none | no DB |
 
@@ -152,11 +152,11 @@ Which module may write which table. An unexpected write in a diff is a review fl
 | Table                                                               | Written by                                      | Never written by                |
 | ------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------- |
 | `org`, `app_user`                                                   | `provisioning_session` (signup only)            | any router                      |
-| `project`, `project_participant`                                    | `routers/projects`                              | client/PMC principals           |
+| `project`, `project_participant`                                    | `services/projects` via `repositories/projects` | client/PMC principals           |
 | `document`                                                          | `routers/inbound`, `routers/documents` (upload) | rules, generation               |
 | `document_classification`                                           | `packages/extraction/classifier`                | routers                         |
 | `extracted_field`                                                   | `packages/extraction/*`, `routers/review`       | rules, generation               |
-| `work_order`                                                        | setup: `routers/projects.create_project` writes base fields (`wo_number`, `trade`, `value`, `certification_sla_days`) from human-typed input; later extraction-derived fields (e.g. `bg_clause_conditionality`, `retention_bg_ratio_clause`) only via promotion from verified `extracted_field` | extraction directly             |
+| `work_order`                                                        | setup: `services/projects.create_project` writes base fields (`wo_number`, `trade`, `value`, `certification_sla_days`) from human-typed input; later extraction-derived fields (e.g. `bg_clause_conditionality`, `retention_bg_ratio_clause`) only via promotion from verified `extracted_field` | extraction directly             |
 | `bank_guarantee`, `proforma_invoice`, `certification`               | promotion from verified `extracted_field` only  | extraction directly             |
 | `exception`                                                         | `apps/api/app/rules/*`                          | extraction, generation, routers |
 | `event_log`                                                         | `core/event_log.append()` only                  | anything else                   |
@@ -267,3 +267,29 @@ Format:
 - **Not changed:** `eval/eval_set_v0/`, application code, migrations
 - **Verify run:** `make verify` — All checks passed (45 pytest)
 - **Decision logged:** D-026 through D-030
+
+### 2026-10-04 · session · Cursor · projects router → service/repository
+
+- **Task:** Create `services/` and `repositories/`; move `routers/projects.py` SQL and
+  business logic with no behaviour change
+- **Files touched:** `apps/api/app/routers/projects.py`, `apps/api/app/services/**`,
+  `apps/api/app/repositories/**`, `DECISIONS.md`, `FLOW.md`
+- **New call path:** `/projects*` → router (auth + session) → `services.projects` →
+  `repositories.projects` (same `org_scoped_session`)
+- **Not changed:** other routers, tests, migrations, web, extraction
+- **Verify run:** `make verify` — All checks passed (45 pytest)
+- **Decision logged:** D-031
+
+### 2026-10-04 · session · Cursor · inbound/review/client → service/repository
+
+- **Task:** Move remaining routers onto services/repositories; CI check bans SQL in routers
+- **Files touched:** `apps/api/app/routers/{inbound,review,client_dashboard}.py`,
+  `apps/api/app/services/**`, `apps/api/app/repositories/**`,
+  `scripts/check_agent_rules.py`, `apps/api/tests/test_routers_no_sql_check.py`,
+  `DECISIONS.md`, `FLOW.md`
+- **New call path:** inbound keeps `privileged_session` → service/repo; document insert
+  via `org_scoped_session`; review and client_dashboard via org-scoped service/repo;
+  client SQL still `state = 'verified'`
+- **Not changed:** existing behavioural tests, migrations, web, extraction
+- **Verify run:** `make verify` — All checks passed (48 pytest; 11 agent-rule checks)
+- **Decision logged:** D-032

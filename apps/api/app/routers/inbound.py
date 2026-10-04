@@ -4,22 +4,28 @@ import base64
 import binascii
 import hashlib
 import hmac
-import re
-from typing import Annotated, Any
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, Request, status
 from pydantic import BaseModel, Field, ValidationError
-from sqlalchemy import text
-from sqlalchemy.orm import Session
 
 from ..core.config import get_settings
 from ..core.db import org_scoped_session, privileged_session
 from ..core.storage import DocumentStorage
+from ..services import inbound as inbound_service
+from ..services.inbound import extract_inbound_alias, parse_reminder_sequence
 
 router = APIRouter(prefix="/inbound", tags=["inbound"])
 
-REMINDER_PATTERN = re.compile(r"\breminder\s*[-:#]?\s*(\d+)\b", re.IGNORECASE)
+# Re-export for existing unit tests (import path unchanged).
+__all__ = [
+    "router",
+    "InboundEmail",
+    "extract_inbound_alias",
+    "parse_reminder_sequence",
+    "receive_email",
+]
 
 
 class InboundEmail(BaseModel):
@@ -28,26 +34,6 @@ class InboundEmail(BaseModel):
     subject: str = Field(default="", max_length=998)
     filename: str = Field(min_length=1, max_length=255)
     content_base64: str
-
-
-def parse_reminder_sequence(subject: str) -> int | None:
-    match = REMINDER_PATTERN.search(subject)
-    return int(match.group(1)) if match else None
-
-
-def extract_inbound_alias(recipient: str) -> str | None:
-    """Parse projects+{alias}@domain → alias. No '+' means unmatched."""
-    address = recipient.strip()
-    if "<" in address and ">" in address:
-        address = address[address.rfind("<") + 1 : address.rfind(">")].strip()
-    if "@" not in address:
-        return None
-    local_part, _, _domain = address.partition("@")
-    if "+" not in local_part:
-        return None
-    _mailbox, alias = local_part.split("+", 1)
-    alias = alias.strip().lower()
-    return alias or None
 
 
 def _verify_signature(raw_body: bytes, supplied_signature: str) -> None:
@@ -61,42 +47,6 @@ def _verify_signature(raw_body: bytes, supplied_signature: str) -> None:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"detail": "invalid webhook signature", "code": "invalid_signature"},
         )
-
-
-def _resolve_project(session: Session, recipient: str) -> dict[str, Any] | None:
-    alias = extract_inbound_alias(recipient)
-    if alias is None:
-        return None
-    row = (
-        session.execute(
-            text(
-                """
-                SELECT id, owner_org_id
-                FROM resolve_inbound_project(:alias)
-                """
-            ),
-            {"alias": alias},
-        )
-        .mappings()
-        .one_or_none()
-    )
-    return dict(row) if row is not None else None
-
-
-def _quarantine(session: Session, recipient: str, payload_hash: str) -> None:
-    session.execute(
-        text(
-            """
-            SELECT quarantine_inbound(
-              :recipient, :payload_hash, 'unknown_recipient'
-            )
-            """
-        ),
-        {
-            "recipient": recipient,
-            "payload_hash": payload_hash,
-        },
-    )
 
 
 @router.post("/email", status_code=status.HTTP_202_ACCEPTED)
@@ -117,9 +67,12 @@ async def receive_email(
 
     payload_hash = hashlib.sha256(raw_body).hexdigest()
     with privileged_session() as session:
-        project = _resolve_project(session, payload.recipient)
+        project = inbound_service.resolve_project_or_quarantine(
+            session,
+            recipient=payload.recipient,
+            payload_hash=payload_hash,
+        )
         if project is None:
-            _quarantine(session, payload.recipient, payload_hash)
             return {"status": "quarantined"}
 
     try:
@@ -136,30 +89,14 @@ async def receive_email(
     owner_org_id = UUID(str(project["owner_org_id"]))
     stored = DocumentStorage().put_document(content)
     with org_scoped_session(owner_org_id) as session:
-        document_id = session.execute(
-            text(
-                """
-                INSERT INTO document (
-                  project_id, filename, storage_uri, sha256, source,
-                  sender_email, reminder_sequence_number
-                )
-                VALUES (
-                  :project_id, :filename, :storage_uri, :sha256,
-                  'email_forward', :sender_email, :reminder_sequence_number
-                )
-                ON CONFLICT (project_id, sha256)
-                DO UPDATE SET received_at = EXCLUDED.received_at
-                RETURNING id
-                """
-            ),
-            {
-                "project_id": project["id"],
-                "filename": payload.filename,
-                "storage_uri": stored.uri,
-                "sha256": stored.sha256,
-                "sender_email": payload.sender,
-                "reminder_sequence_number": parse_reminder_sequence(payload.subject),
-            },
-        ).scalar_one()
+        document_id = inbound_service.accept_document(
+            session,
+            project_id=UUID(str(project["id"])),
+            filename=payload.filename,
+            storage_uri=stored.uri,
+            sha256=stored.sha256,
+            sender_email=payload.sender,
+            subject=payload.subject,
+        )
 
     return {"status": "accepted", "document_id": str(document_id)}

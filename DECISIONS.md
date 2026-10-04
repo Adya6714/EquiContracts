@@ -784,3 +784,50 @@ the gitignored `docs/archive/`).
 
 **Revisit if.** A stakeholder needs a single printable tome again.
 
+---
+
+## D-031 — First router split: projects uses services and repositories
+- **Date:** 2026-10-04
+- **Phase:** 1
+- **Decided by:** Composer
+- **Status:** accepted
+
+**Context.** D-018 chose routers / services / repositories. SQL still lived in
+`routers/projects.py`, which blocks agents from calling the same logic through tools.
+
+**Decision.** `apps/api/app/repositories/` holds all SQL and receives the caller's
+Session (never opens its own). `apps/api/app/services/` holds business logic.
+`routers/projects.py` only authenticates, opens `org_scoped_session`, calls the service,
+and maps errors/status codes. No behaviour change; money stays `Decimal`. Other routers
+migrate the same way later.
+
+**Why this approach.** One proven path before mass refactor; RLS stays on the app-role
+org-scoped session.
+
+**Trade-offs accepted.** Temporary inconsistency until other routers follow.
+
+**Revisit if.** A router needs a different session pattern than org-scoped app role.
+
+---
+
+## D-032 — Remaining HTTP routers use services/repositories; CI bans SQL in routers
+- **Date:** 2026-10-04
+- **Phase:** 1
+- **Decided by:** Composer
+- **Status:** accepted
+
+**Context.** After D-031, inbound / review / client_dashboard still had SQL in routers.
+Inbound must keep the system-role `privileged_session` for resolve/quarantine.
+
+**Decision.** Split those three routers the same way as projects. Inbound still uses
+`privileged_session` then `org_scoped_session` (never admin). Client dashboard SQL
+keeps `state = 'verified'`. `scripts/check_agent_rules.py` fails if any file under
+`apps/api/app/routers/` imports `sqlalchemy.text` or calls `.execute()`.
+
+**Why this approach.** Agents and HTTP share services; CI stops SQL creeping back.
+
+**Trade-offs accepted.** More files per feature; pure helpers re-exported from inbound
+router so existing import paths keep working.
+
+**Revisit if.** A webhook must run SQL before a service exists (should not happen).
+
