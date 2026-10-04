@@ -78,12 +78,37 @@ def extract_bank_guarantee_from_path(path: Path) -> BankGuaranteeExtraction:
     return extract_bank_guarantee_from_text(load_document_text(path))
 
 
+def load_system_prompt() -> str:
+    return PROMPT_PATH.read_text(encoding="utf-8")
+
+
+def call_extraction_model(*, system: str, user: str) -> tuple[str, str]:
+    """Call the configured LLM. Returns (model_version, raw_text)."""
+
+    result = call_extraction_model_detailed(system=system, user=user)
+    return result["model_version"], result["raw_text"]
+
+
+def call_extraction_model_detailed(*, system: str, user: str) -> dict[str, Any]:
+    """Call LLM; include token counts when the provider reports them."""
+
+    return _call_model_detailed(system=system, user=user)
+
+
 def extract_bank_guarantee_from_text(document_text: str) -> BankGuaranteeExtraction:
-    prompt = PROMPT_PATH.read_text(encoding="utf-8")
+    prompt = load_system_prompt()
     user_message = build_user_message(document_text)
-    model_version, raw_text = _call_model(system=prompt, user=user_message)
-    payload = _parse_model_json(raw_text)
-    return parse_extraction_payload(payload, model_version=model_version)
+    detailed = call_extraction_model_detailed(system=prompt, user=user_message)
+    payload = _parse_model_json(detailed["raw_text"])
+    return parse_extraction_payload(
+        payload, model_version=str(detailed["model_version"])
+    )
+
+
+def parse_model_json(raw_text: str) -> dict[str, Any]:
+    """Public wrapper for tests and the Extraction Agent."""
+
+    return _parse_model_json(raw_text)
 
 
 def persist_bank_guarantee_fields(
@@ -150,7 +175,7 @@ def parse_extraction_payload(
     return _to_extraction(payload, model_version=model_version)
 
 
-def _call_model(*, system: str, user: str) -> tuple[str, str]:
+def _call_model_detailed(*, system: str, user: str) -> dict[str, Any]:
     settings = get_llm_settings()
     if settings.provider == "anthropic":
         return _call_anthropic(
@@ -172,7 +197,7 @@ def _call_model(*, system: str, user: str) -> tuple[str, str]:
 
 def _call_anthropic(
     *, system: str, user: str, model: str, api_key: str
-) -> tuple[str, str]:
+) -> dict[str, Any]:
     import anthropic
 
     client = anthropic.Anthropic(api_key=api_key)
@@ -182,12 +207,19 @@ def _call_anthropic(
         system=system,
         messages=[{"role": "user", "content": user}],
     )
-    text_parts = [
-        block.text
-        for block in message.content
-        if getattr(block, "type", None) == "text"
-    ]
-    return model, "\n".join(text_parts)
+    text_parts: list[str] = []
+    for block in message.content:
+        if getattr(block, "type", None) == "text":
+            text_parts.append(str(getattr(block, "text", "")))
+    usage = getattr(message, "usage", None)
+    prompt_tokens = int(getattr(usage, "input_tokens", 0) or 0)
+    completion_tokens = int(getattr(usage, "output_tokens", 0) or 0)
+    return {
+        "model_version": model,
+        "raw_text": "\n".join(text_parts),
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+    }
 
 
 def _call_openai_compatible(
@@ -197,7 +229,7 @@ def _call_openai_compatible(
     base_url: str | None,
     api_key: str,
     model: str,
-) -> tuple[str, str]:
+) -> dict[str, Any]:
     # Ollama's OpenAI-compat endpoint is more reliable via plain HTTP than the
     # OpenAI SDK against a flaky local daemon.
     if base_url and "11434" in base_url:
@@ -224,12 +256,20 @@ def _call_openai_compatible(
         client = OpenAI(api_key=api_key, base_url=base_url)
         response = client.chat.completions.create(**kwargs)
     content = response.choices[0].message.content or ""
-    return model, content
+    usage = getattr(response, "usage", None)
+    prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
+    completion_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
+    return {
+        "model_version": model,
+        "raw_text": content,
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+    }
 
 
 def _call_ollama_http(
     *, system: str, user: str, base_url: str, model: str
-) -> tuple[str, str]:
+) -> dict[str, Any]:
     import urllib.error
     import urllib.request
 
@@ -269,7 +309,12 @@ def _call_ollama_http(
     content = message.get("content") or ""
     if not content.strip():
         raise RuntimeError(f"ollama returned empty content: {payload!r}")
-    return model, content
+    return {
+        "model_version": model,
+        "raw_text": content,
+        "prompt_tokens": int(payload.get("prompt_eval_count") or 0),
+        "completion_tokens": int(payload.get("eval_count") or 0),
+    }
 
 
 def _parse_model_json(raw_text: str) -> dict[str, Any]:
@@ -347,6 +392,7 @@ def _to_extraction(
                 )
             continue
 
+        value: str | None
         if name == "value":
             value = _normalize_money(value_raw)
         elif name.endswith("_date") and not name.endswith("_raw"):

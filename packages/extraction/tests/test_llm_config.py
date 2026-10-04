@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from packages.extraction.bg_extractor import _call_model
+from packages.extraction.bg_extractor import call_extraction_model
 from packages.extraction.llm_config import DEFAULT_BASE_URLS, get_llm_settings
 
 
@@ -142,7 +142,7 @@ def test_anthropic_routed_to_call_anthropic_with_settings_key_and_model() -> Non
         ),
         patch.dict("sys.modules", {"anthropic": fake_anthropic_mod}),
     ):
-        model, text = _call_model(system="sys", user="usr")
+        model, text = call_extraction_model(system="sys", user="usr")
 
     assert model == "claude-test-model"
     assert text == '{"extracted": {}}'

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -10,6 +11,8 @@ from sqlalchemy.orm import Session
 
 from ..services import agent_events as agent_events_service
 from ..services import agent_reads as agent_reads_service
+
+LlmFn = Callable[..., dict[str, Any]]
 
 
 class WorkerServiceHandle:
@@ -20,11 +23,15 @@ class WorkerServiceHandle:
         session: Session,
         *,
         pinned_document_id: UUID | None = None,
+        event_payload: dict[str, Any] | None = None,
         storage: Any | None = None,
+        llm_fn: LlmFn | None = None,
     ) -> None:
         self._session = session
         self.pinned_document_id = pinned_document_id
+        self.event_payload = event_payload or {}
         self._storage = storage
+        self._llm_fn = llm_fn
 
     def fetch_engagement_context(self, *, engagement_id: UUID) -> dict[str, Any] | None:
         return agent_reads_service.get_engagement_context(
@@ -42,6 +49,30 @@ class WorkerServiceHandle:
             document_id=document_id,
             storage=self._storage,
         )
+
+    def call_bg_extraction_llm(self, *, system: str, user: str) -> dict[str, Any]:
+        if self._llm_fn is not None:
+            return self._llm_fn(system=system, user=user)
+        from packages.extraction.bg_extractor import call_extraction_model_detailed
+        from packages.extraction.llm_pricing import estimate_would_have_cost
+
+        detailed = call_extraction_model_detailed(system=system, user=user)
+        model_version = str(detailed["model_version"])
+        prompt_tokens = int(detailed.get("prompt_tokens") or 0)
+        completion_tokens = int(detailed.get("completion_tokens") or 0)
+        return {
+            "model_version": model_version,
+            "raw_text": str(detailed["raw_text"]),
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "cost": str(
+                estimate_would_have_cost(
+                    model_version,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                )
+            ),
+        }
 
     def record_step(
         self,

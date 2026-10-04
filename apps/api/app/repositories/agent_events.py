@@ -157,6 +157,7 @@ def finish_agent_run(
     steps_used: int,
     retries_used: int = 0,
     cost: Decimal = Decimal("0"),
+    model_version: str | None = None,
 ) -> None:
     session.execute(
         text(
@@ -166,6 +167,7 @@ def finish_agent_run(
                 steps_used = :steps_used,
                 retries_used = :retries_used,
                 cost = :cost,
+                model_version = COALESCE(:model_version, model_version),
                 finished_at = now()
             WHERE id = :run_id
             """
@@ -176,8 +178,20 @@ def finish_agent_run(
             "steps_used": steps_used,
             "retries_used": retries_used,
             "cost": cost,
+            "model_version": model_version,
         },
     )
+
+
+def fetch_event_payload(session: Session, *, event_id: UUID) -> dict[str, Any]:
+    row = session.execute(
+        text("SELECT payload FROM event WHERE id = :event_id"),
+        {"event_id": event_id},
+    ).one_or_none()
+    if row is None:
+        return {}
+    payload = row[0]
+    return dict(payload) if isinstance(payload, dict) else {}
 
 
 def mark_event_processed(session: Session, *, event_id: UUID) -> None:
@@ -383,7 +397,8 @@ def list_proposals_for_run(session: Session, *, run_id: UUID) -> list[dict[str, 
         session.execute(
             text(
                 """
-                SELECT id, proposal_type, autonomy_level, state, engagement_id
+                SELECT id, proposal_type, content, confidence,
+                       autonomy_level, state, engagement_id
                 FROM agent_proposal
                 WHERE run_id = :run_id
                 ORDER BY created_at

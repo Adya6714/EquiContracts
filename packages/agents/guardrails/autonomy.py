@@ -9,6 +9,8 @@ _LEVELS: dict[str, int] = {
     "link_exact": 3,
     "link_fuzzy": 1,
     "propose_financial_field": 1,
+    "propose_field": 1,
+    "extraction.unreadable": 1,
     "mark_financial_field_verified": 4,
     "raise_gap": 3,
     "close_gap": 3,

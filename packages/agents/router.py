@@ -5,6 +5,7 @@ from __future__ import annotations
 # Fan-out ready: one event type may wake several agents.
 _ROUTES: dict[str, list[str]] = {
     "test.echo": ["echo"],
+    "document.classified": ["extraction"],
 }
 
 

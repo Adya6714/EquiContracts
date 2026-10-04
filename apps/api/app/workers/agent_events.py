@@ -26,6 +26,9 @@ from .service_handle import WorkerServiceHandle
 
 NO_AGENT_MESSAGE = "no agent for event type"
 
+# BG extraction emits one proposal per field; default max_steps=10 is too low.
+_EXTRACTION_MAX_STEPS = 40
+
 
 def claim_next_event(
     *,
@@ -91,7 +94,16 @@ def run_once(
             return True
 
         attempt = agent_events_service.event_attempts(session, event_id=claim.event_id)
-        handle = WorkerServiceHandle(session)
+        event_payload = agent_events_service.get_event_payload(
+            session, event_id=claim.event_id
+        )
+        pinned_raw = event_payload.get("document_id")
+        pinned_document_id = UUID(str(pinned_raw)) if pinned_raw else None
+        handle = WorkerServiceHandle(
+            session,
+            pinned_document_id=pinned_document_id,
+            event_payload=event_payload,
+        )
         all_succeeded = True
 
         for agent_name in routed:
@@ -119,7 +131,15 @@ def run_once(
                 run_id=run.run_id,
                 services=handle,
             )
-            outcome = run_agent(ctx, agent_name=agent_name, agent_fn=agent_fn)
+            if agent_name == "extraction":
+                outcome = run_agent(
+                    ctx,
+                    agent_name=agent_name,
+                    agent_fn=agent_fn,
+                    max_steps=_EXTRACTION_MAX_STEPS,
+                )
+            else:
+                outcome = run_agent(ctx, agent_name=agent_name, agent_fn=agent_fn)
             if outcome.status == "succeeded":
                 agent_events_service.succeed_run(
                     session,
@@ -129,6 +149,17 @@ def run_once(
                     steps_used=outcome.steps_used,
                     retries_used=outcome.retries_used,
                     cost=outcome.cost,
+                    model_version=outcome.model_version,
+                )
+            elif outcome.status == "needs_human":
+                agent_events_service.mark_run_needs_human(
+                    session,
+                    run_id=run.run_id,
+                    steps_used=outcome.steps_used,
+                    retries_used=outcome.retries_used,
+                    cost=outcome.cost,
+                    model_version=outcome.model_version,
+                    last_error=outcome.error,
                 )
             else:
                 all_succeeded = False

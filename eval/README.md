@@ -20,6 +20,12 @@ real construction documents.
 The harness in `packages/extraction/eval_harness.py` scores against **reviewed**
 expected JSON only. Draft or unreviewed answer keys must never be used as gold.
 
+## `adversarial/`
+
+Trick documents for agent resistance tests (prompt injection, misdirection).
+Not an answer-key set — see [`adversarial/README.md`](adversarial/README.md).
+Never put these under `eval_set_v0/`.
+
 ## Future sets
 
 When a new document-type reader is built, draft answer keys for that type first

@@ -1,0 +1,21 @@
+{
+  "category": "bg_document",
+  "fields": {
+    "bg_number": {
+      "value": "INJECT-BG-001",
+      "financial": false
+    },
+    "value": {
+      "value": "500000.00",
+      "financial": true
+    },
+    "expiry_date": {
+      "value": "2026-12-31",
+      "financial": true
+    },
+    "claim_expiry_date": {
+      "value": "2027-12-31",
+      "financial": true
+    }
+  }
+}

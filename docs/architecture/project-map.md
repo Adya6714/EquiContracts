@@ -137,20 +137,20 @@ claims events and passes an opaque services handle into `RunContext`.
 | Path | Role |
 |---|---|
 | `router.py` | `event_type` → agent name list (unknown → fail) |
-| `runtime.py` | steps / retries / cost; `emit_proposal` looks up autonomy |
+| `runtime.py` | steps / retries / cost; `emit_proposal`; `finish_needs_human` |
 | `guardrails/` | allowlist, autonomy ladder, Indian number check |
-| `tools/` | `get_engagement_context`, `read_document_metadata` (engagement-pinned) |
+| `tools/` | `get_engagement_context`, `read_document_metadata`, `read_document_pages` |
 | `agents/echo/` | Deterministic stub: tool read + one `echo.note` proposal |
+| `agents/extraction/` | BG Extraction Agent: pages → LLM → self-checks → field proposals |
 
 ### `packages/extraction/` — the AI layer
 
 | File | What it does |
 |---|---|
-| `router.py` | Dispatches by file type: xlsx → structured parser, PDF/image → vision model |
-| `vision_extractor.py` | Frontier model with schema-constrained JSON output |
-| `structured_extractor.py` | `openpyxl` for real spreadsheets — cheaper and more precise than vision on structured data |
-| `classifier.py` | Sorts email into the 10 categories |
-| `confidence.py` | Decides auto-commit vs review queue |
+| `bg_extractor.py` | BG field parse + LLM call (page, source_quote, unresolved) |
+| `self_checks.py` | Pure checks including quote-in-doc and quote-supports-value |
+| `llm_pricing.py` | Would-have-cost from a price table (even on free tier) |
+| `eval_extraction_cli.py` | Live `make eval-extraction`: GECPL + adversarial |
 | `eval_harness.py` | Scores extraction against the 11 real documents. Reports financial and non-financial accuracy **separately** — an aggregate hides regressions in exactly the fields that cost money. |
 
 ### `eval/eval_set_v0/` — the frozen truth
@@ -159,6 +159,11 @@ Eleven real historical documents with hand-verified expected answers. **CI block
 modification.** If an extraction test fails, the extractor is wrong — not the fixture.
 
 Currently 2 of 11 transcribed.
+
+### `eval/adversarial/` — trick documents
+
+Prompt-injection and misdirection fixtures for agent resistance tests. Not an
+answer-key set; never merge into `eval_set_v0`.
 
 ---
 
@@ -250,17 +255,19 @@ Canonical decision log: [DECISIONS.md](../../DECISIONS.md).
 
 **Done (code):** schema through BG tables · site/engagement + locked quarantine (0009) ·
 agent foundation schema (0010) · agent runtime/guardrails/echo + worker `run_once`
-(D-034/D-035) · RLS · API core · four routers on services/repositories · walking
-web skeleton · CI guardrails · rule engine loader · plus-address inbound · BG
-extractor with provider-selectable LLM settings · GECPL eval baseline 4/4
+(D-034/D-035) · Extraction Agent (BG) on `document.classified` (D-037) · RLS ·
+API core · four routers on services/repositories · walking web skeleton · CI
+guardrails · rule engine loader · plus-address inbound · BG extractor with
+provider-selectable LLM settings · GECPL eval baseline 4/4
 (`gemini-2.5-flash`) · FLOW/DECISIONS living docs.
 
-**Not built yet:** real agents (Intake/Extraction/…) · LLM inside runtime ·
-LangGraph · promotion beyond extractor rows · real auth (header stub remains) ·
-Tracks B/C · web rename away from `/projects`.
+**Not built yet:** Intake Agent · other document-type extractors · LangGraph ·
+promotion beyond proposals · real auth (header stub remains) · Tracks B/C ·
+web rename away from `/projects`.
 
 **Immediate path:** follow [START_HERE.md](../plans/START_HERE.md) steps 2→10.
 Step 1 (BG extractor baseline) is done. Step 5 Part B (echo runtime) is done.
+Step 6a (Extraction Agent BG) is done. Next: Step 6b Intake Agent.
 
 **Before any public deployment:** replace the auth stub (Step 10). Full checklist:
 [docs/security/pre-launch-checklist.md](../security/pre-launch-checklist.md).

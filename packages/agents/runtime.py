@@ -51,6 +51,14 @@ class ServicesHandleError(Exception):
         super().__init__(code)
 
 
+class NeedsHumanSignal(Exception):
+    """Agent finished with proposals that need a human. Runtime flushes buffer."""
+
+    def __init__(self, code: str = "needs_human") -> None:
+        self.code = code
+        super().__init__(code)
+
+
 @dataclass
 class ProposalEmission:
     proposal_type: str
@@ -75,6 +83,7 @@ class RunOutcome:
     cost: Decimal
     error: str | None = None
     proposals: list[ProposalEmission] = field(default_factory=list)
+    model_version: str | None = None
 
 
 @dataclass
@@ -85,11 +94,33 @@ class AgentRuntime:
     max_retries: int = MAX_RETRIES_DEFAULT
     cost_cap: Decimal = COST_CAP_DEFAULT
     cost_per_step: Decimal = Decimal("0")
+    model_version: str | None = None
     _steps: int = 0
     _retries: int = 0
     _cost: Decimal = Decimal("0")
     _buffer: list[_BufferedProposal] = field(default_factory=list)
     _failed: str | None = None
+
+    def add_cost(self, amount: Decimal) -> None:
+        if amount < 0:
+            raise ValueError("cost must be non-negative")
+        self._cost += amount
+        if self._cost > self.cost_cap:
+            self._failed = "cost_cap"
+            raise RunLimitError("cost_cap")
+
+    def record_llm_usage(
+        self, *, prompt_tokens: int = 0, completion_tokens: int = 0
+    ) -> None:
+        """Log token counts on a step. Never logs prompt or completion text."""
+
+        self._begin_step()
+        self._log_step(
+            tool_called=None,
+            outcome="ok",
+            input_payload={"prompt_tokens": int(prompt_tokens)},
+            output_payload={"completion_tokens": int(completion_tokens)},
+        )
 
     def call_tool(self, tool_name: str, **kwargs: Any) -> Any:
         self._begin_step()
@@ -179,8 +210,13 @@ class AgentRuntime:
     def discard_proposals(self) -> None:
         self._buffer.clear()
 
+    def finish_needs_human(self, code: str = "needs_human") -> None:
+        """End the run as needs_human; buffered proposals are kept and flushed."""
+
+        raise NeedsHumanSignal(code)
+
     def flush_proposals(self) -> list[ProposalEmission]:
-        """Write buffered proposals to the database. Call only on success."""
+        """Write buffered proposals to the database. Call on success / needs_human."""
 
         create = getattr(self.context.services, "create_proposal", None)
         if create is None:
@@ -315,6 +351,18 @@ def run_agent(
                 retries_used=runtime._retries,
                 cost=runtime._cost,
                 proposals=proposals,
+                model_version=runtime.model_version,
+            )
+        except NeedsHumanSignal as exc:
+            proposals = runtime.flush_proposals()
+            return RunOutcome(
+                status="needs_human",
+                steps_used=runtime._steps,
+                retries_used=runtime._retries,
+                cost=runtime._cost,
+                error=_safe_error(exc),
+                proposals=proposals,
+                model_version=runtime.model_version,
             )
         except SelfCheckError as exc:
             runtime.discard_proposals()
@@ -326,6 +374,7 @@ def run_agent(
                     cost=runtime._cost,
                     error=_safe_error(RunLimitError("max_retries")),
                     proposals=[],
+                    model_version=runtime.model_version,
                 )
             _ = exc
             runtime._retries += 1
@@ -341,6 +390,7 @@ def run_agent(
                 cost=runtime._cost,
                 error=_safe_error(exc),
                 proposals=[],
+                model_version=runtime.model_version,
             )
         except Exception as exc:  # noqa: BLE001 — surface as failed run
             runtime.discard_proposals()
@@ -351,4 +401,5 @@ def run_agent(
                 cost=runtime._cost,
                 error=_safe_error(exc),
                 proposals=[],
+                model_version=runtime.model_version,
             )

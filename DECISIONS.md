@@ -1005,4 +1005,39 @@ flags; keeps document bytes server-side behind RLS + storage URI.
 
 **Revisit if.** PDF page splitting lands or financial field set changes.
 
+## D-037 — Extraction Agent is a reader; proposals from code; unreadable on success
+
+- **Date:** 2026-10-04
+- **Phase:** 1 / Step 6a Part 2
+- **Decided by:** Composer
+- **Status:** accepted
+
+**Context.** Runtime discards buffered proposals on failure. Prompt injection
+defence requires the model that sees document text to have no write tools.
+
+**Decision.**
+1. Extraction allowlist: `read_document_pages`, `read_document_metadata` only.
+   Field proposals are emitted by agent Python via `emit_proposal`, not LLM tools.
+2. Self-check retries (max 2 after the first attempt) are owned by the agent with
+   error codes fed back into the next user message. After exhaustion, emit
+   `extraction.unreadable` and **succeed** the run so proposals persist.
+3. `document.classified` routes to Extraction; worker loads event payload, pins
+   `document_id`, and injects LLM via `WorkerServiceHandle` (fake in CI).
+4. Prompt-injection fixture lives in `eval/adversarial/` (v0 untouched).
+5. Unreadable / exhausted self-checks call `runtime.finish_needs_human()` →
+   run status `needs_human`, proposals flushed and kept; crashes/limits still
+   discard. Worker treats `needs_human` as handled for event processed.
+6. Self-check `quote_does_not_support_value`: money/date in `source_quote`
+   must match the field value (Indian number normalisation).
+7. `agent_run.cost` stores would-have-cost from `llm_pricing` even when the
+   provider bills $0.
+
+**Why this approach.** Matches D-022 and the Step 6a design; CI never needs a
+real model for agent tests; success rate is not inflated by unreadable docs.
+
+**Trade-offs accepted.** Materializing proposals into `extracted_field` stays for
+a later part / Step 7.
+
+**Revisit if.** Per-org pricing overrides are needed.
+
 

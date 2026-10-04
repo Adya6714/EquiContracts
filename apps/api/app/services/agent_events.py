@@ -103,6 +103,7 @@ def succeed_run(
     steps_used: int,
     retries_used: int = 0,
     cost: Decimal = Decimal("0"),
+    model_version: str | None = None,
 ) -> None:
     """Finish a run as succeeded. Event processed is decided by the worker (fan-out)."""
 
@@ -113,9 +114,38 @@ def succeed_run(
         steps_used=steps_used,
         retries_used=retries_used,
         cost=cost,
+        model_version=model_version,
     )
     _ = event_id
     _ = agent_name
+
+
+def mark_run_needs_human(
+    session: Session,
+    *,
+    run_id: UUID,
+    steps_used: int,
+    retries_used: int = 0,
+    cost: Decimal = Decimal("0"),
+    model_version: str | None = None,
+    last_error: str | None = None,
+) -> None:
+    """Finish a run as needs_human (proposals already flushed)."""
+
+    agent_events_repo.finish_agent_run(
+        session,
+        run_id=run_id,
+        status="needs_human",
+        steps_used=steps_used,
+        retries_used=retries_used,
+        cost=cost,
+        model_version=model_version,
+    )
+    _ = last_error
+
+
+def get_event_payload(session: Session, *, event_id: UUID) -> dict[str, Any]:
+    return agent_events_repo.fetch_event_payload(session, event_id=event_id)
 
 
 def mark_event_processed(session: Session, *, event_id: UUID) -> None:

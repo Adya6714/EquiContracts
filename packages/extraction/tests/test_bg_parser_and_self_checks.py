@@ -16,11 +16,13 @@ from packages.extraction.self_checks import (
     BG_NUMBER_MISSING,
     CLAIM_BEFORE_EXPIRY,
     INVALID_CALENDAR_DATE,
+    QUOTE_DOES_NOT_SUPPORT_VALUE,
     SOURCE_QUOTE_NOT_FOUND,
     VALUE_NOT_POSITIVE,
     check_bg_number_present,
     check_calendar_dates,
     check_claim_expiry_order,
+    check_quote_supports_value,
     check_source_quotes,
     check_value_positive,
     run_bg_self_checks,
@@ -220,3 +222,28 @@ def test_source_quote_fails_invented_passes_whitespace_variant() -> None:
 def test_run_bg_self_checks_all_pass_on_good_fixture() -> None:
     extraction = parse_extraction_payload(_payload())
     assert run_bg_self_checks(extraction, DOC_TEXT) == []
+
+
+def test_quote_supports_gecpl_style_money_and_date() -> None:
+    extraction = parse_extraction_payload(_payload())
+    assert check_quote_supports_value(extraction) is None
+
+
+def test_quote_with_different_amount_fails() -> None:
+    payload = _payload()
+    payload["extracted"]["value"]["source_quote"] = "Rs.1,50,00,000/-"
+    # Quote must still appear in document for the other check; use a doc that
+    # contains both amounts so only the support check fails.
+    doc = DOC_TEXT + " also mentions Rs.1,50,00,000/- elsewhere"
+    extraction = parse_extraction_payload(payload)
+    assert check_source_quotes(extraction, doc) is None
+    assert check_quote_supports_value(extraction) == QUOTE_DOES_NOT_SUPPORT_VALUE
+
+
+def test_quote_with_different_date_fails() -> None:
+    payload = _payload()
+    payload["extracted"]["expiry_date"]["source_quote"] = "01.01.2020"
+    doc = DOC_TEXT + " old date 01.01.2020"
+    extraction = parse_extraction_payload(payload)
+    assert check_source_quotes(extraction, doc) is None
+    assert check_quote_supports_value(extraction) == QUOTE_DOES_NOT_SUPPORT_VALUE

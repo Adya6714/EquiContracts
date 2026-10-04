@@ -27,6 +27,7 @@ Every way execution begins. If it isn't listed here, it doesn't exist.
 | `python -m packages.extraction.eval_harness --case gecpl-bg-invocation` | CLI | `eval_harness.run_case` → `bg_extractor.extract_bank_guarantee_from_path` → `_call_model` → `llm_config.get_llm_settings` → Anthropic SDK or OpenAI-compatible client | none | no DB |
 | `make worker` / `python -m apps.api.app.workers` | Background loop | `workers.agent_events.run_once` → claim → runtime → proposal | agent DB role | claim cross-org; run via `agent_org_scoped_session` |
 | Agent tool `read_document_pages` | Extraction (6a+) | tool → `services.agent_reads.get_document_pages` → repo storage_uri → `DocumentStorage.get_document_bytes` → `document_text` | agent run context | pinned `document_id` + engagement; RLS on document row |
+| `make eval-extraction` | Manual live eval | `packages.extraction.eval_extraction_cli` → Extraction Agent + real LLM on GECPL + `eval/adversarial/` | none (uses `.env`) | no DB; recording services handle |
 
 
 **Two entry points deserve special attention.**
@@ -300,6 +301,20 @@ Format:
 - **Not changed:** existing behavioural tests, migrations, web, extraction
 - **Verify run:** `make verify` — All checks passed (48 pytest; 11 agent-rule checks)
 - **Decision logged:** D-032
+
+### 2026-10-04 · session · Cursor · Step 6a Part 2 (Extraction Agent)
+
+- **Task:** Extraction Agent (BG): reader allowlist, fake-LLM CI path, self-check
+  retries → `extraction.unreadable` + `finish_needs_human`, adversarial injection
+  fixture, `quote_does_not_support_value`, would-have-cost
+- **Files touched:** `packages/agents/agents/extraction/**`, router/runtime/autonomy,
+  worker pin + `call_bg_extraction_llm`, `eval/adversarial/`, self_checks,
+  llm_pricing, tests, DECISIONS/FLOW
+- **New call path:** `document.classified` → claim → pin `document_id` →
+  `read_document_pages` → LLM (handle) → self-checks → `emit_proposal` per field;
+  exhausted/unreadable → `NeedsHumanSignal` (proposals kept, status needs_human)
+- **Not changed:** migrations, eval_set_v0, web, review UI
+- **Decision logged:** D-037
 
 ### 2026-10-04 · session · Cursor · Step 6a Part 1 (BG evidence + read_document_pages)
 
