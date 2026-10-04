@@ -235,6 +235,111 @@ def routers_have_no_sql(routers_dir: Path | None = None) -> list[str]:
     return failures
 
 
+def agents_have_no_db_access(agents_dir: Path | None = None) -> list[str]:
+    """packages/agents may not touch SQLAlchemy, repos, sessions, or set_config."""
+
+    root = agents_dir if agents_dir is not None else ROOT / "packages/agents"
+    if not root.exists():
+        return []
+    forbidden = re.compile(
+        r"(?:"
+        r"\bsqlalchemy\b"
+        r"|\brepositories\b"
+        r"|(?:App|Agent|Admin)SessionFactory\b"
+        r"|\b(?:org_scoped_session|agent_org_scoped_session|"
+        r"privileged_session|provisioning_session)\b"
+        r"|\bset_config\s*\("
+        r"|\.execute\s*\("
+        r")"
+    )
+    failures: list[str] = []
+    for path in sorted(root.rglob("*.py")):
+        if any(part in {"__pycache__", ".venv"} for part in path.parts):
+            continue
+        try:
+            rel = str(path.relative_to(ROOT))
+        except ValueError:
+            rel = str(path)
+        for number, line in non_comment_lines(path):
+            if forbidden.search(line):
+                failures.append(f"{rel}:{number}: agents package database access")
+    return failures
+
+
+def agent_folders_have_card_and_agent(agents_dir: Path | None = None) -> list[str]:
+    """Every folder under packages/agents/agents/ must have card.md and agent.py."""
+
+    root = agents_dir if agents_dir is not None else ROOT / "packages/agents/agents"
+    if not root.exists():
+        return []
+    failures: list[str] = []
+    for path in sorted(root.iterdir()):
+        if not path.is_dir() or path.name.startswith((".", "_")):
+            continue
+        if any(part == "__pycache__" for part in path.parts):
+            continue
+        try:
+            rel = str(path.relative_to(ROOT))
+        except ValueError:
+            rel = str(path)
+        if not (path / "card.md").is_file():
+            failures.append(f"{rel}: missing card.md")
+        if not (path / "agent.py").is_file():
+            failures.append(f"{rel}: missing agent.py")
+    return failures
+
+
+def allowlisted_tools_are_registered(
+    *,
+    allowlist_path: Path | None = None,
+    registry_path: Path | None = None,
+) -> list[str]:
+    """Every tool name on any allowlist must exist in the tool registry."""
+
+    allowlist_file = (
+        allowlist_path
+        if allowlist_path is not None
+        else ROOT / "packages/agents/guardrails/allowlist.py"
+    )
+    registry_file = (
+        registry_path
+        if registry_path is not None
+        else ROOT / "packages/agents/tools/__init__.py"
+    )
+    if not allowlist_file.exists() or not registry_file.exists():
+        return ["packages/agents: allowlist or tool registry missing"]
+
+    allowlist_names = set(
+        re.findall(r'["\']([a-z][a-z0-9_]*)["\']', allowlist_file.read_text())
+    )
+    # Drop the agent name key "echo" etc. by intersecting with registry keys only
+    # after reading registry; allowlist file also contains agent names.
+    registry_names = set(
+        re.findall(
+            r'["\']([a-z][a-z0-9_]*)["\']\s*:',
+            registry_file.read_text(),
+        )
+    )
+    # Tools in allowlist frozensets are quoted strings; agent keys too.
+    # Compare: every string that appears inside frozenset({...}) style tool lists.
+    tool_literals = set(
+        re.findall(
+            r"frozenset\(\{([^}]*)\}\)",
+            allowlist_file.read_text(),
+            flags=re.DOTALL,
+        )
+    )
+    required: set[str] = set()
+    for block in tool_literals:
+        required.update(re.findall(r'["\']([a-z][a-z0-9_]*)["\']', block))
+    if not required:
+        # Fallback: all quoted names in allowlist that look like tools (contain _)
+        required = {name for name in allowlist_names if "_" in name}
+
+    missing = sorted(required - registry_names)
+    return [f"allowlisted tool not in registry: {name}" for name in missing]
+
+
 def decisions_log_updated() -> list[str]:
     commands = [
         ["git", "diff", "--name-only"],
@@ -279,6 +384,9 @@ CHECKS: tuple[tuple[str, Callable[[], list[str]]], ...] = (
     ("client_routes_verified_only", client_routes_verified_only),
     ("tenant_routes_are_scoped", tenant_routes_are_scoped),
     ("routers_have_no_sql", routers_have_no_sql),
+    ("agents_have_no_db_access", agents_have_no_db_access),
+    ("agent_folders_have_card_and_agent", agent_folders_have_card_and_agent),
+    ("allowlisted_tools_are_registered", allowlisted_tools_are_registered),
     ("decisions_log_updated", decisions_log_updated),
 )
 

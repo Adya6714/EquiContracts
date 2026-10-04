@@ -437,6 +437,7 @@ def test_failed_run_does_not_process_event_retry_is_attempt_two(access_data) -> 
             agent_name="echo",
             steps_used=1,
         )
+        agent_events_service.mark_event_processed(session, event_id=claim.event_id)
         status = session.execute(
             text("SELECT status FROM event WHERE id = :id"),
             {"id": claim.event_id},

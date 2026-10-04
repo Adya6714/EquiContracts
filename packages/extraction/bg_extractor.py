@@ -17,13 +17,11 @@ from .document_text import load_document_text
 from .llm_config import get_llm_settings
 
 ROOT = Path(__file__).resolve().parents[2]
-PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "bank_guarantee.v1.md"
+PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "bank_guarantee.v2.md"
 SCHEMA_PATH = Path(__file__).resolve().parent / "schemas" / "bank_guarantee.json"
 
-# Every bank-guarantee field is financial: wrong values cost real money.
-BG_FINANCIAL_FIELDS = frozenset(
-    json.loads(SCHEMA_PATH.read_text())["properties"].keys()
-)
+_SCHEMA = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+BG_FINANCIAL_FIELDS = frozenset(_SCHEMA.get("financialFields") or [])
 
 DOCUMENT_START = "<<<DOCUMENT_CONTENT_START>>>"
 DOCUMENT_END = "<<<DOCUMENT_CONTENT_END>>>"
@@ -34,7 +32,10 @@ class ExtractedField:
     field_name: str
     field_value: str | None
     confidence: Decimal
-    is_financial: bool = True
+    is_financial: bool
+    page: int | None = None
+    source_quote: str | None = None
+    unresolved_reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -58,6 +59,10 @@ class BankGuaranteeExtraction:
         }
 
 
+def is_financial_field(field_name: str) -> bool:
+    return field_name in BG_FINANCIAL_FIELDS
+
+
 def build_user_message(document_text: str) -> str:
     return (
         "Extract bank-guarantee fields from the following document.\n"
@@ -78,7 +83,7 @@ def extract_bank_guarantee_from_text(document_text: str) -> BankGuaranteeExtract
     user_message = build_user_message(document_text)
     model_version, raw_text = _call_model(system=prompt, user=user_message)
     payload = _parse_model_json(raw_text)
-    return _to_extraction(payload, model_version=model_version)
+    return parse_extraction_payload(payload, model_version=model_version)
 
 
 def persist_bank_guarantee_fields(
@@ -91,6 +96,8 @@ def persist_bank_guarantee_fields(
 
     inserted: list[UUID] = []
     for field in extraction.fields:
+        if field.field_value is None:
+            continue
         result = session.execute(
             text(
                 """
@@ -133,6 +140,14 @@ def process_bank_guarantee_document(
         session, document_id=document_id, extraction=extraction
     )
     return extraction
+
+
+def parse_extraction_payload(
+    payload: dict[str, Any], *, model_version: str = "test"
+) -> BankGuaranteeExtraction:
+    """Parse model/fixture JSON into BankGuaranteeExtraction (no LLM)."""
+
+    return _to_extraction(payload, model_version=model_version)
 
 
 def _call_model(*, system: str, user: str) -> tuple[str, str]:
@@ -274,11 +289,22 @@ def _parse_model_json(raw_text: str) -> dict[str, Any]:
     return payload
 
 
+def _unwrap_field_entry(raw: Any) -> tuple[Any, int | None, str | None]:
+    """Support v2 nested objects and v1 flat values."""
+
+    if isinstance(raw, dict) and "value" in raw:
+        page_raw = raw.get("page")
+        page = None if page_raw is None or page_raw == "" else int(page_raw)
+        quote = raw.get("source_quote")
+        quote_s = None if quote is None else str(quote)
+        return raw.get("value"), page, quote_s
+    return raw, None, None
+
+
 def _to_extraction(
     payload: dict[str, Any], *, model_version: str
 ) -> BankGuaranteeExtraction:
-    schema = json.loads(SCHEMA_PATH.read_text())
-    property_names = list(schema["properties"].keys())
+    property_names = list(_SCHEMA["properties"].keys())
     extracted = payload.get("extracted")
     if extracted is None and any(name in payload for name in property_names):
         extracted = {name: payload.get(name) for name in property_names}
@@ -291,24 +317,43 @@ def _to_extraction(
 
     unresolved_raw = payload.get("unresolved") or []
     unresolved: list[dict[str, str]] = []
+    unresolved_by_field: dict[str, str] = {}
     if isinstance(unresolved_raw, list):
         for item in unresolved_raw:
             if isinstance(item, dict) and "field" in item and "reason" in item:
-                unresolved.append(
-                    {"field": str(item["field"]), "reason": str(item["reason"])}
-                )
+                entry = {"field": str(item["field"]), "reason": str(item["reason"])}
+                unresolved.append(entry)
+                unresolved_by_field[entry["field"]] = entry["reason"]
 
     fields: list[ExtractedField] = []
+    raw_extracted: dict[str, Any] = {}
     for name in property_names:
-        value = extracted.get(name)
-        if value is None:
+        raw_entry = extracted.get(name)
+        value_raw, page, source_quote = _unwrap_field_entry(raw_entry)
+        raw_extracted[name] = value_raw
+
+        if value_raw is None:
+            if name in unresolved_by_field:
+                fields.append(
+                    ExtractedField(
+                        field_name=name,
+                        field_value=None,
+                        confidence=Decimal("0.000"),
+                        is_financial=is_financial_field(name),
+                        page=page,
+                        source_quote=source_quote,
+                        unresolved_reason=unresolved_by_field[name],
+                    )
+                )
             continue
+
         if name == "value":
-            value = _normalize_money(value)
+            value = _normalize_money(value_raw)
         elif name.endswith("_date") and not name.endswith("_raw"):
-            value = _normalize_iso_date(value)
+            value = _normalize_iso_date(value_raw)
         else:
-            value = str(value).strip() if value is not None else None
+            value = str(value_raw).strip() if value_raw is not None else None
+
         conf_raw = confidence_map.get(name, "0.850")
         confidence = Decimal(str(conf_raw)).quantize(Decimal("0.001"))
         if confidence < 0 or confidence > 1:
@@ -318,7 +363,10 @@ def _to_extraction(
                 field_name=name,
                 field_value=value,
                 confidence=confidence,
-                is_financial=True,
+                is_financial=is_financial_field(name),
+                page=page,
+                source_quote=source_quote,
+                unresolved_reason=None,
             )
         )
 
@@ -326,7 +374,7 @@ def _to_extraction(
         fields=tuple(fields),
         unresolved=tuple(unresolved),
         model_version=model_version,
-        raw_extracted={k: extracted.get(k) for k in property_names},
+        raw_extracted=raw_extracted,
     )
 
 

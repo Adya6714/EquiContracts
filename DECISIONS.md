@@ -929,3 +929,80 @@ in Part B).
 **Revisit if.** Fan-out requires waiting on several agent names before
 `processed`, or claim should move to a dedicated queue table.
 
+## D-035 — Agent runtime: fan-out router, runtime autonomy, pinned tools
+- **Date:** 2026-10-04
+- **Phase:** 1
+- **Decided by:** Adya (Step 5 Part B) / Composer
+- **Status:** accepted
+
+**Context.** Part A delivered durable events/runs. Part B needs a runtime that
+agents can use without database imports, with safe defaults for unknown actions.
+
+**Decision.**
+1. Plain-code router maps `event_type` → list of agent names (fan-out ready).
+   Only `test.echo` → `[echo]` is registered. Unknown types: worker marks the
+   event `failed` with `no agent for event type` — never guess.
+2. Autonomy level is looked up by the runtime (`guardrails/autonomy.py`) when
+   emitting a proposal. Agents cannot pass a level. Unknown actions → level 2.
+   The runtime never auto-applies proposals (no apply path in `emit_proposal`).
+3. Tools (`get_engagement_context`, `read_document_metadata`) are pinned to the
+   run's engagement: any other engagement_id or document is refused.
+4. Number check understands Indian money formats (Indian grouping, Rs/₹, L/lakh,
+   Cr/crore, plain decimals), day/month dates and month-name dates; every digit
+   in the text must be consumed by an allowed amount, date, plain number, or
+   percentage.
+5. Worker `run_once` in `apps/api` claims, opens an agent-role org session, runs
+   each routed agent with `attempt = event.attempts`, marks `processed` only
+   when every routed agent succeeded. `packages/agents` never touches the DB.
+6. Proposals are buffered in memory and written only when the run succeeds;
+   failures/retries discard the buffer. Steps are logged immediately. Step
+   payloads use a key allowlist. Run errors store `ExceptionClass:code` only,
+   never `str(exc)`.
+
+**Why this approach.** Keeps fan-out and autonomy policy outside the model;
+tools cannot wander across engagements even inside one org; failed runs cannot
+leave orphan proposals.
+
+**Trade-offs accepted.** No LangGraph/LLM yet; echo is a deterministic stub.
+Promotion/auto-apply stays outside the runtime.
+
+**Revisit if.** Per-org autonomy overrides or queue infrastructure replace the
+Postgres claim loop.
+
+## D-036 — BG extraction evidence fields + financial list in schema
+
+- **Date:** 2026-10-04
+- **Phase:** 1 / Step 6a Part 1
+- **Decided by:** Composer
+- **Status:** accepted
+
+**Context.** Step 6a needs every extracted BG field to carry page and an exact
+source quote for review, and a single definition of which BG fields are
+financial. The agent role cannot write `extracted_field`; the extractor still
+produces structured values for later proposals.
+
+**Decision.**
+1. Prompt bumped to `bank_guarantee.v2.md` (v1 kept). Each field is
+   `{value, page, source_quote}`; `page` is null when the loader has no pages
+   (never invented). Unresolved fields carry `unresolved_reason`.
+2. Financial fields are listed once in `schemas/bank_guarantee.json` as
+   `financialFields`: `value`, `issue_date`, `expiry_date`,
+   `claim_expiry_date`. Other fields (bg_number, banks, parties, raws) are not.
+3. Pure self-checks live in `packages/extraction/self_checks.py` (claim order,
+   calendar dates, positive value, bg_number present, quote ⊆ document text
+   after whitespace collapse).
+4. `DocumentStorage.get_document_bytes` accepts only `s3://` URIs for the
+   configured bucket — never a caller path. `read_document_pages` is pinned to
+   the run's engagement and `pinned_document_id`; step logs keep ids /
+   `page_count` / token counts only (log allowlist in
+   `guardrails/log_allowlist.py`).
+
+**Why this approach.** Matches the Step 6a design and GECPL gold financial
+flags; keeps document bytes server-side behind RLS + storage URI.
+
+**Trade-offs accepted.** Flat text loaders still yield a single chunk with
+`page: null`. Extraction Agent itself is not built yet.
+
+**Revisit if.** PDF page splitting lands or financial field set changes.
+
+

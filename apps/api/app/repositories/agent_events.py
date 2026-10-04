@@ -349,3 +349,49 @@ def get_event_status(session: Session, *, event_id: UUID) -> str | None:
         text("SELECT status FROM event WHERE id = :id"),
         {"id": event_id},
     ).scalar_one_or_none()
+
+
+def get_event_attempts(session: Session, *, event_id: UUID) -> int:
+    attempts = session.execute(
+        text("SELECT attempts FROM event WHERE id = :id"),
+        {"id": event_id},
+    ).scalar_one()
+    return int(attempts)
+
+
+def list_steps_for_run(session: Session, *, run_id: UUID) -> list[dict[str, Any]]:
+    rows = (
+        session.execute(
+            text(
+                """
+                SELECT step_no, tool_called, input, output, outcome
+                FROM agent_step
+                WHERE run_id = :run_id
+                ORDER BY step_no
+                """
+            ),
+            {"run_id": run_id},
+        )
+        .mappings()
+        .all()
+    )
+    return [dict(row) for row in rows]
+
+
+def list_proposals_for_run(session: Session, *, run_id: UUID) -> list[dict[str, Any]]:
+    rows = (
+        session.execute(
+            text(
+                """
+                SELECT id, proposal_type, autonomy_level, state, engagement_id
+                FROM agent_proposal
+                WHERE run_id = :run_id
+                ORDER BY created_at
+                """
+            ),
+            {"run_id": run_id},
+        )
+        .mappings()
+        .all()
+    )
+    return [dict(row) for row in rows]

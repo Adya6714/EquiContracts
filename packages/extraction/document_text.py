@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import io
+import tempfile
 from pathlib import Path
+from typing import Any, cast
 
 
 def load_document_text(path: Path) -> str:
@@ -16,24 +18,44 @@ def load_document_text(path: Path) -> str:
     suffix = path.suffix.lower()
     if suffix == ".msg":
         return _text_from_msg(path)
-    if suffix == ".docx":
-        return _text_from_docx_bytes(path.read_bytes())
-    if suffix in {".txt", ".md", ".html", ".htm"}:
-        return path.read_text(encoding="utf-8", errors="replace")
-    # Fall back to best-effort UTF-8 for unknown text-like payloads.
-    raw = path.read_bytes()
+    return load_document_text_from_bytes(path.read_bytes(), suffix=suffix)
+
+
+def load_document_text_from_bytes(data: bytes, *, suffix: str = ".txt") -> str:
+    """Load extractable text from bytes. ``suffix`` includes the leading dot."""
+
+    normalized = suffix.lower() if suffix.startswith(".") else f".{suffix.lower()}"
+    if normalized == ".msg":
+        with tempfile.NamedTemporaryFile(suffix=".msg") as handle:
+            handle.write(data)
+            handle.flush()
+            return _text_from_msg(Path(handle.name))
+    if normalized == ".docx":
+        return _text_from_docx_bytes(data)
+    if normalized in {".txt", ".md", ".html", ".htm", ""}:
+        return data.decode("utf-8", errors="replace")
     try:
-        return raw.decode("utf-8")
+        return data.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise ValueError(
-            f"unsupported document type for text extraction: {path.name}"
+            f"unsupported document type for text extraction: {normalized or 'unknown'}"
         ) from exc
 
 
-def _text_from_msg(path: Path) -> str:
-    import extract_msg  # type: ignore[import-untyped]
+def pages_from_text(document_text: str) -> list[dict[str, object]]:
+    """Split into page dicts. Flat loaders yield one chunk with page=null."""
 
-    msg = extract_msg.Message(str(path))
+    text = document_text.strip()
+    if not text:
+        return []
+    # No page markers from current loaders — never invent a page number.
+    return [{"page": None, "text": text}]
+
+
+def _text_from_msg(path: Path) -> str:
+    import extract_msg
+
+    msg = extract_msg.Message(str(path))  # type: ignore[no-untyped-call]
     parts: list[str] = []
     subject = (msg.subject or "").strip()
     if subject:
@@ -43,16 +65,17 @@ def _text_from_msg(path: Path) -> str:
         parts.append(body)
     for attachment in msg.attachments:
         name = attachment.longFilename or attachment.shortFilename or "attachment"
-        data = attachment.data
+        data = cast(Any, attachment.data)
         if not data:
             continue
-        lower = name.lower()
+        payload = bytes(data)
+        lower = str(name).lower()
         if lower.endswith(".docx"):
             parts.append(f"--- attachment: {name} ---")
-            parts.append(_text_from_docx_bytes(data))
+            parts.append(_text_from_docx_bytes(payload))
         elif lower.endswith((".txt", ".md")):
             parts.append(f"--- attachment: {name} ---")
-            parts.append(data.decode("utf-8", errors="replace"))
+            parts.append(payload.decode("utf-8", errors="replace"))
     text = "\n\n".join(parts).strip()
     if not text:
         raise ValueError(f"no extractable text in {path.name}")
@@ -60,7 +83,7 @@ def _text_from_msg(path: Path) -> str:
 
 
 def _text_from_docx_bytes(data: bytes) -> str:
-    from docx import Document  # type: ignore[import-untyped]
+    from docx import Document
 
     document = Document(io.BytesIO(data))
     lines = [p.text.strip() for p in document.paragraphs if p.text.strip()]

@@ -66,9 +66,14 @@ def start_run(
     agent_version: str,
     engagement_id: UUID | None = None,
     model_version: str | None = None,
+    attempt: int | None = None,
 ) -> AgentRunResult:
-    attempt = agent_events_repo.next_attempt_for_agent(
-        session, event_id=event_id, agent_name=agent_name
+    resolved_attempt = (
+        attempt
+        if attempt is not None
+        else agent_events_repo.next_attempt_for_agent(
+            session, event_id=event_id, agent_name=agent_name
+        )
     )
     row = agent_events_repo.insert_agent_run(
         session,
@@ -77,14 +82,14 @@ def start_run(
         engagement_id=engagement_id,
         agent_name=agent_name,
         agent_version=agent_version,
-        attempt=attempt,
+        attempt=resolved_attempt,
         model_version=model_version,
     )
     return AgentRunResult(
         run_id=UUID(str(row["id"])),
         event_id=event_id,
         agent_name=agent_name,
-        attempt=attempt,
+        attempt=resolved_attempt,
         status=str(row["status"]),
     )
 
@@ -99,7 +104,7 @@ def succeed_run(
     retries_used: int = 0,
     cost: Decimal = Decimal("0"),
 ) -> None:
-    """Finish a run as succeeded; mark event processed only if this agent succeeded."""
+    """Finish a run as succeeded. Event processed is decided by the worker (fan-out)."""
 
     agent_events_repo.finish_agent_run(
         session,
@@ -109,11 +114,22 @@ def succeed_run(
         retries_used=retries_used,
         cost=cost,
     )
-    if agent_events_repo.event_has_succeeded_run_for_agent(
-        session, event_id=event_id, agent_name=agent_name
-    ):
-        # Part A: one routed agent per event; fan-out completeness lands in Part B.
-        agent_events_repo.mark_event_processed(session, event_id=event_id)
+    _ = event_id
+    _ = agent_name
+
+
+def mark_event_processed(session: Session, *, event_id: UUID) -> None:
+    agent_events_repo.mark_event_processed(session, event_id=event_id)
+
+
+def mark_event_failed(session: Session, *, event_id: UUID, last_error: str) -> None:
+    agent_events_repo.mark_event_failed(
+        session, event_id=event_id, last_error=last_error
+    )
+
+
+def event_attempts(session: Session, *, event_id: UUID) -> int:
+    return agent_events_repo.get_event_attempts(session, event_id=event_id)
 
 
 def fail_run(

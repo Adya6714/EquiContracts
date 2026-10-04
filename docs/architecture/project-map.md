@@ -129,6 +129,19 @@ Every rule needs: `id`, `when`, `severity`, `evidence_query`, `action_owner`,
 **This directory contains zero AI calls, enforced by CI.** A bank guarantee expiry alert must
 give the same answer every time, forever.
 
+### `packages/agents/` — runtime, guardrails, tools, agents (D-035)
+
+No SQL or repository imports (CI-enforced). Worker in `apps/api/app/workers/`
+claims events and passes an opaque services handle into `RunContext`.
+
+| Path | Role |
+|---|---|
+| `router.py` | `event_type` → agent name list (unknown → fail) |
+| `runtime.py` | steps / retries / cost; `emit_proposal` looks up autonomy |
+| `guardrails/` | allowlist, autonomy ladder, Indian number check |
+| `tools/` | `get_engagement_context`, `read_document_metadata` (engagement-pinned) |
+| `agents/echo/` | Deterministic stub: tool read + one `echo.note` proposal |
+
 ### `packages/extraction/` — the AI layer
 
 | File | What it does |
@@ -236,16 +249,18 @@ Canonical decision log: [DECISIONS.md](../../DECISIONS.md).
 ## Part 7 — Current state and the path forward
 
 **Done (code):** schema through BG tables · site/engagement + locked quarantine (0009) ·
-RLS · API core · four routers on services/repositories · walking web skeleton · CI
-guardrails · rule engine loader · plus-address inbound · BG extractor with
-provider-selectable LLM settings · GECPL eval baseline 4/4 (`gemini-2.5-flash`) ·
-FLOW/DECISIONS living docs.
+agent foundation schema (0010) · agent runtime/guardrails/echo + worker `run_once`
+(D-034/D-035) · RLS · API core · four routers on services/repositories · walking
+web skeleton · CI guardrails · rule engine loader · plus-address inbound · BG
+extractor with provider-selectable LLM settings · GECPL eval baseline 4/4
+(`gemini-2.5-flash`) · FLOW/DECISIONS living docs.
 
-**Not built yet:** agents · Intake · promotion beyond extractor rows · real auth
-(header stub remains) · Tracks B/C · web rename away from `/projects`.
+**Not built yet:** real agents (Intake/Extraction/…) · LLM inside runtime ·
+LangGraph · promotion beyond extractor rows · real auth (header stub remains) ·
+Tracks B/C · web rename away from `/projects`.
 
 **Immediate path:** follow [START_HERE.md](../plans/START_HERE.md) steps 2→10.
-Step 1 (BG extractor baseline) is done.
+Step 1 (BG extractor baseline) is done. Step 5 Part B (echo runtime) is done.
 
 **Before any public deployment:** replace the auth stub (Step 10). Full checklist:
 [docs/security/pre-launch-checklist.md](../security/pre-launch-checklist.md).

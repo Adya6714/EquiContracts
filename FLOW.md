@@ -25,6 +25,8 @@ Every way execution begins. If it isn't listed here, it doesn't exist.
 | `GET /client/dashboard`                      | Client UI               | `routers/client_dashboard.overview` → `services/client_dashboard` → `repositories/client_dashboard` | client\_\*, pmc_user | `org_scoped_session` + **verified-only filter in repository SQL** |
 | `python -m packages.extraction.eval_harness` | CLI                     | `eval_harness.main`                  | none                 | no DB                                            |
 | `python -m packages.extraction.eval_harness --case gecpl-bg-invocation` | CLI | `eval_harness.run_case` → `bg_extractor.extract_bank_guarantee_from_path` → `_call_model` → `llm_config.get_llm_settings` → Anthropic SDK or OpenAI-compatible client | none | no DB |
+| `make worker` / `python -m apps.api.app.workers` | Background loop | `workers.agent_events.run_once` → claim → runtime → proposal | agent DB role | claim cross-org; run via `agent_org_scoped_session` |
+| Agent tool `read_document_pages` | Extraction (6a+) | tool → `services.agent_reads.get_document_pages` → repo storage_uri → `DocumentStorage.get_document_bytes` → `document_text` | agent run context | pinned `document_id` + engagement; RLS on document row |
 
 
 **Two entry points deserve special attention.**
@@ -298,6 +300,41 @@ Format:
 - **Not changed:** existing behavioural tests, migrations, web, extraction
 - **Verify run:** `make verify` — All checks passed (48 pytest; 11 agent-rule checks)
 - **Decision logged:** D-032
+
+### 2026-10-04 · session · Cursor · Step 6a Part 1 (BG evidence + read_document_pages)
+
+- **Task:** BG extractor v2 fields (page, source_quote, unresolved_reason),
+  schema `financialFields`, pure self-checks, `get_document_bytes`,
+  `read_document_pages` tool (pinned), log allowlist tokens/page_count
+- **Files touched:** `packages/extraction/**`, `packages/agents/tools/`,
+  `packages/agents/guardrails/{allowlist,log_allowlist}.py`,
+  `packages/agents/runtime.py` (import log allowlist),
+  `apps/api/app/core/storage.py`, `apps/api/app/services/agent_reads.py`,
+  `apps/api/app/repositories/agent_reads.py`,
+  `apps/api/app/workers/service_handle.py`, tests, `DECISIONS.md`, `FLOW.md`,
+  `docs/prompts/05-extraction-agent.md`
+- **New call path:** `read_document_pages` → service looks up document row
+  (RLS) → `get_document_bytes(storage_uri)` → page chunks; no caller path
+- **Not changed:** migrations, eval_set_v0, web, Extraction Agent (not yet)
+- **Decision logged:** D-036
+
+### 2026-10-04 · session · Cursor · agent foundation Part B (runtime + echo)
+
+- **Task:** `packages/agents` runtime/guardrails/tools/echo; worker `run_once`;
+  CI bans DB access in agents; number check; no LLM/LangGraph
+- **Files touched:** `packages/agents/**`, `apps/api/app/workers/**`,
+  `apps/api/app/services/agent_{events,reads}.py`,
+  `apps/api/app/repositories/agent_{events,reads}.py`,
+  `apps/api/tests/test_agent_{runtime,rules_checks,foundation}.py`,
+  `scripts/check_agent_rules.py`, `Makefile`, `DECISIONS.md`, `FLOW.md`,
+  `docs/architecture/project-map.md`
+- **New call path:** event INSERT (app) → `make worker` / `run_once` →
+  `claim_next_event` → `agent_org_scoped_session` → router → `start_run`
+  (attempt = event.attempts) → `packages.agents.runtime.run_agent` → tools
+  (services handle) → `emit_proposal` (autonomy lookup) → if all agents
+  succeeded, `mark_event_processed`; unknown event_type → failed
+- **Not changed:** migrations, web, extraction, eval
+- **Decision logged:** D-035
 
 ### 2026-10-04 · session · Cursor · agent foundation Part A (schema + claim)
 

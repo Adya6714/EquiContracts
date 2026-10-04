@@ -3,6 +3,12 @@
   "title": "bank_guarantee",
   "description": "Extraction schema for bank guarantee documents. Phase 1 tuning.",
   "type": "object",
+  "financialFields": [
+    "value",
+    "issue_date",
+    "expiry_date",
+    "claim_expiry_date"
+  ],
   "properties": {
     "bg_number": {
       "type": ["string", "null"],
