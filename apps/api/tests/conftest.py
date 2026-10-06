@@ -1,7 +1,11 @@
 """Database fixtures exercise RLS as the application role."""
 
+from __future__ import annotations
+
+import json
 from collections.abc import Iterator
 from dataclasses import dataclass
+from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
@@ -26,6 +30,48 @@ class AccessFixture:
     document_a: UUID
     verified_field: UUID
     review_field: UUID
+
+
+def admin_insert_event(
+    *,
+    org_id: UUID,
+    event_type: str,
+    idempotency_key: str,
+    engagement_id: UUID | None = None,
+    payload: dict[str, Any] | None = None,
+    caused_by_event_id: UUID | None = None,
+    chain_depth: int = 0,
+) -> UUID:
+    """Insert an event as admin (bypasses app-role root-event INSERT policy)."""
+    admin = AdminSessionFactory()
+    try:
+        event_id = admin.execute(
+            text(
+                """
+                INSERT INTO event (
+                  org_id, engagement_id, event_type, idempotency_key, payload,
+                  caused_by_event_id, chain_depth
+                ) VALUES (
+                  :org, :eng, :etype, :key, CAST(:payload AS jsonb),
+                  :caused_by, :depth
+                )
+                RETURNING id
+                """
+            ),
+            {
+                "org": org_id,
+                "eng": engagement_id,
+                "etype": event_type,
+                "key": idempotency_key,
+                "payload": json.dumps(payload or {}),
+                "caused_by": caused_by_event_id,
+                "depth": chain_depth,
+            },
+        ).scalar_one()
+        admin.commit()
+        return UUID(str(event_id))
+    finally:
+        admin.close()
 
 
 @pytest.fixture()

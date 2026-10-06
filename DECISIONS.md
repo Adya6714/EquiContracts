@@ -1040,4 +1040,71 @@ a later part / Step 7.
 
 **Revisit if.** Per-org pricing overrides are needed.
 
+## D-038 — Intake handoff is code + DEFINER; types in a reference table
+
+- **Date:** 2026-10-04
+- **Phase:** 1 / Step 6b Part 1
+- **Decided by:** Composer + founder direction
+- **Status:** accepted
+
+**Context.** Agents must not insert `event` rows (loop risk). Classification
+must not write `document.doc_type` until a human decides (Step 7). Document
+types will grow after co-founder review.
+
+**Decision.**
+1. Classification proposals stay Level 2; `document.doc_type` /
+   `evidence_weight` columns exist but have no UPDATE grant for app/agent yet.
+2. `document.received` is inserted by the app role in the same transaction as
+   the document row (idempotency `document.received:{document_id}`).
+3. Handoff to Extraction uses `create_follow_up_event(parent_event_id,
+   proposal_id)` SECURITY DEFINER, EXECUTE only for `equicontracts_agent`.
+   The function re-reads the Intake `propose_classification` proposal and
+   builds the child payload itself; confidence threshold stays in worker code.
+4. Event chain: `caused_by_event_id` + `chain_depth`; refuse child depth > 3.
+5. Types live in `document_type` reference table (SELECT-only for app/agent).
+6. CI: only `apps/api/app/workers/` may call `create_follow_up_event`.
+
+**Why this approach.** Same pattern as `claim_next_event`; a worker bug cannot
+invent a BG handoff without a real proposal; types stay editable without
+migrations that rewrite CHECK constraints.
+
+**Trade-offs accepted.** Multi-attachment split and WO linking wait for later
+parts. Intake agent logic is still a stub after this part.
+
+**Revisit if.** Co-founder changes the type list or wants Level 3 auto-apply
+of type onto `document` before review.
+
+## D-039 — Follow-up and app-role event/document grants tightened in 0011
+
+- **Date:** 2026-10-06
+- **Phase:** 1 / Step 6b Part 1 (amend before first commit)
+- **Decided by:** Composer + founder direction
+- **Status:** accepted
+
+**Context.** 0011 was applied only locally and never committed. App role could
+still insert any event type (including `document.classified` and chained
+children) and UPDATE most document columns, which undercuts the DEFINER
+handoff and identity/storage immutability.
+
+**Decision.**
+1. `create_follow_up_event` refuses unless `agent_run.agent_name = 'intake'`
+   (`follow_up_wrong_agent`).
+2. Proposal `document_id` must equal the parent event payload `document_id`,
+   and that document must exist with `engagement_id` equal to the parent's
+   (`follow_up_document_mismatch`).
+3. App `event` INSERT policy: root only — `caused_by_event_id IS NULL`,
+   `chain_depth = 0`, `event_type IN ('document.received', 'test.echo')`,
+   same-org checks kept.
+4. App `document` UPDATE grant: `received_at` only (the sole column set by
+   inbound re-accept upsert). Never identity, storage, or classification
+   columns.
+
+**Why this approach.** Matches how engagement UPDATE was locked in 0009:
+grant only what app code writes. Classified children stay DEFINER-only.
+
+**Trade-offs accepted.** Tests that need non-root event types seed via admin.
+
+**Revisit if.** App must insert additional root event types or update more
+document columns.
+
 

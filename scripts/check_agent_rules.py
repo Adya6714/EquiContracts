@@ -340,6 +340,32 @@ def allowlisted_tools_are_registered(
     return [f"allowlisted tool not in registry: {name}" for name in missing]
 
 
+def follow_up_event_only_from_workers(
+    *,
+    scan_roots: tuple[str, ...] | None = None,
+) -> list[str]:
+    """create_follow_up_event may only be called from apps/api/app/workers/."""
+
+    roots = scan_roots if scan_roots is not None else ("apps", "packages")
+    pattern = re.compile(r"\bcreate_follow_up_event\b")
+    failures: list[str] = []
+    for path in files_under(*roots, suffixes={".py"}):
+        try:
+            rel = relative(path)
+        except ValueError:
+            rel = str(path)
+        if rel.startswith("apps/api/app/workers/"):
+            continue
+        if "/tests/" in rel.replace("\\", "/") or rel.startswith("apps/api/tests/"):
+            continue
+        for number, line in non_comment_lines(path):
+            if pattern.search(line):
+                failures.append(
+                    f"{rel}:{number}: create_follow_up_event outside workers/"
+                )
+    return failures
+
+
 def decisions_log_updated() -> list[str]:
     commands = [
         ["git", "diff", "--name-only"],
@@ -387,6 +413,7 @@ CHECKS: tuple[tuple[str, Callable[[], list[str]]], ...] = (
     ("agents_have_no_db_access", agents_have_no_db_access),
     ("agent_folders_have_card_and_agent", agent_folders_have_card_and_agent),
     ("allowlisted_tools_are_registered", allowlisted_tools_are_registered),
+    ("follow_up_event_only_from_workers", follow_up_event_only_from_workers),
     ("decisions_log_updated", decisions_log_updated),
 )
 

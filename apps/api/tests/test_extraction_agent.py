@@ -15,6 +15,7 @@ from apps.api.app.core.storage import DocumentStorage
 from apps.api.app.repositories import agent_events as agent_events_repo
 from apps.api.app.services import agent_events as agent_events_service
 from apps.api.app.workers.service_handle import WorkerServiceHandle
+from apps.api.tests.conftest import admin_insert_event
 from packages.agents.agents.extraction import agent as extraction_agent
 from packages.agents.context import RunContext
 from packages.agents.guardrails.allowlist import allowed_tools
@@ -158,16 +159,13 @@ def test_would_have_cost_and_model_version_recorded(access_data) -> None:
             # omit cost — agent must estimate would-have-cost
         }
 
-    with org_scoped_session(access_data.contractor_a) as session:
-        event = agent_events_service.create_event(
-            session,
-            org_id=access_data.contractor_a,
-            event_type="document.classified",
-            idempotency_key=f"cost-{uuid4().hex}",
-            engagement_id=access_data.project_a,
-            payload={"document_id": str(doc_id), "doc_type": "bank_guarantee"},
-        )
-        event_id = event["id"]
+    event_id = admin_insert_event(
+        org_id=access_data.contractor_a,
+        event_type="document.classified",
+        idempotency_key=f"cost-{uuid4().hex}",
+        engagement_id=access_data.project_a,
+        payload={"document_id": str(doc_id), "doc_type": "bank_guarantee"},
+    )
 
     with agent_org_scoped_session(access_data.contractor_a) as session:
         run = agent_events_service.start_run(
@@ -221,18 +219,16 @@ def test_document_classified_routes_and_proposes_fields(access_data) -> None:
             "cost": "0.01",
         }
 
-    with org_scoped_session(access_data.contractor_a) as session:
-        agent_events_service.create_event(
-            session,
-            org_id=access_data.contractor_a,
-            event_type="document.classified",
-            idempotency_key=f"ext-{uuid4().hex}",
-            engagement_id=access_data.project_a,
-            payload={
-                "document_id": str(doc_id),
-                "doc_type": "bank_guarantee",
-            },
-        )
+    admin_insert_event(
+        org_id=access_data.contractor_a,
+        event_type="document.classified",
+        idempotency_key=f"ext-{uuid4().hex}",
+        engagement_id=access_data.project_a,
+        payload={
+            "document_id": str(doc_id),
+            "doc_type": "bank_guarantee",
+        },
+    )
 
     # Inject fake LLM via patching handle construction in a direct run.
     with agent_org_scoped_session(access_data.contractor_a) as session:
@@ -305,16 +301,13 @@ def test_document_classified_routes_and_proposes_fields(access_data) -> None:
 
 def test_non_bg_classified_emits_no_proposals(access_data) -> None:
     doc_id, storage = _store_doc(access_data, b"not a bg")
-    with org_scoped_session(access_data.contractor_a) as session:
-        event = agent_events_service.create_event(
-            session,
-            org_id=access_data.contractor_a,
-            event_type="document.classified",
-            idempotency_key=f"nonbg-{uuid4().hex}",
-            engagement_id=access_data.project_a,
-            payload={"document_id": str(doc_id), "doc_type": "proforma_invoice"},
-        )
-        event_id = event["id"]
+    event_id = admin_insert_event(
+        org_id=access_data.contractor_a,
+        event_type="document.classified",
+        idempotency_key=f"nonbg-{uuid4().hex}",
+        engagement_id=access_data.project_a,
+        payload={"document_id": str(doc_id), "doc_type": "proforma_invoice"},
+    )
 
     with agent_org_scoped_session(access_data.contractor_a) as session:
         run = agent_events_service.start_run(
@@ -374,16 +367,13 @@ def test_self_check_exhaustion_emits_unreadable(access_data) -> None:
             "cost": "0",
         }
 
-    with org_scoped_session(access_data.contractor_a) as session:
-        event = agent_events_service.create_event(
-            session,
-            org_id=access_data.contractor_a,
-            event_type="document.classified",
-            idempotency_key=f"bad-{uuid4().hex}",
-            engagement_id=access_data.project_a,
-            payload={"document_id": str(doc_id), "doc_type": "bank_guarantee"},
-        )
-        event_id = event["id"]
+    event_id = admin_insert_event(
+        org_id=access_data.contractor_a,
+        event_type="document.classified",
+        idempotency_key=f"bad-{uuid4().hex}",
+        engagement_id=access_data.project_a,
+        payload={"document_id": str(doc_id), "doc_type": "bank_guarantee"},
+    )
 
     with agent_org_scoped_session(access_data.contractor_a) as session:
         run = agent_events_service.start_run(
@@ -517,16 +507,13 @@ def test_injection_fixture_no_extra_actions(access_data) -> None:
             "cost": "0",
         }
 
-    with org_scoped_session(access_data.contractor_a) as session:
-        event = agent_events_service.create_event(
-            session,
-            org_id=access_data.contractor_a,
-            event_type="document.classified",
-            idempotency_key=f"inj-{uuid4().hex}",
-            engagement_id=access_data.project_a,
-            payload={"document_id": str(doc_id), "doc_type": "bank_guarantee"},
-        )
-        event_id = event["id"]
+    event_id = admin_insert_event(
+        org_id=access_data.contractor_a,
+        event_type="document.classified",
+        idempotency_key=f"inj-{uuid4().hex}",
+        engagement_id=access_data.project_a,
+        payload={"document_id": str(doc_id), "doc_type": "bank_guarantee"},
+    )
 
     with agent_org_scoped_session(access_data.contractor_a) as session:
         run = agent_events_service.start_run(

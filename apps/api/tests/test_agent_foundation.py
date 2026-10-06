@@ -771,6 +771,8 @@ def test_agent_foundation_privilege_snapshot() -> None:
         "created_at",
         "claimed_at",
         "processed_at",
+        "caused_by_event_id",
+        "chain_depth",
     )
     run_cols = (
         "id",
@@ -871,13 +873,30 @@ def test_agent_foundation_privilege_snapshot() -> None:
                 SELECT grantee, routine_name, privilege_type
                 FROM information_schema.routine_privileges
                 WHERE specific_schema = 'public'
-                  AND routine_name = 'claim_next_event'
+                  AND routine_name IN (
+                    'claim_next_event',
+                    'create_follow_up_event'
+                  )
                   AND grantee IN (
                     'equicontracts_app',
                     'equicontracts_agent',
                     'PUBLIC'
                   )
                 ORDER BY 1, 2, 3
+                """
+            )
+        ).all()
+        # 0011: app UPDATE on document is received_at only; agent has none.
+        doc_update_rows = session.execute(
+            text(
+                """
+                SELECT grantee, column_name
+                FROM information_schema.column_privileges
+                WHERE table_schema = 'public'
+                  AND table_name = 'document'
+                  AND privilege_type = 'UPDATE'
+                  AND grantee IN ('equicontracts_app', 'equicontracts_agent')
+                ORDER BY 1, 2
                 """
             )
         ).all()
@@ -944,12 +963,16 @@ def test_agent_foundation_privilege_snapshot() -> None:
     )
     expected_exec = {
         ("equicontracts_agent", "claim_next_event", "EXECUTE"),
+        ("equicontracts_agent", "create_follow_up_event", "EXECUTE"),
     }
+    expected_doc_update = {("equicontracts_app", "received_at")}
 
     actual_table = {(r[0], r[1], r[2]) for r in table_rows}
     actual_columns = {(r[0], r[1], r[2], r[3]) for r in column_rows}
     actual_exec = {(r[0], r[1], r[2]) for r in exec_rows}
+    actual_doc_update = {(r[0], r[1]) for r in doc_update_rows}
 
     assert actual_table == expected_table
     assert actual_columns == expected_columns
     assert actual_exec == expected_exec
+    assert actual_doc_update == expected_doc_update

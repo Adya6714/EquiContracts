@@ -19,7 +19,7 @@ Every way execution begins. If it isn't listed here, it doesn't exist.
 | `POST /projects`                             | Contractor UI           | `routers/projects.create_project` → `services/projects.create_project` → `repositories/projects` | contractor_admin     | `org_scoped_session` (passed into service/repo) |
 | `GET /projects`                              | Contractor UI           | `routers/projects.list_projects` → `services/projects.list_projects` → `repositories/projects` | any contractor role  | `org_scoped_session` (passed into service/repo) |
 | `PATCH /projects/{id}/modules`               | Contractor UI           | `routers/projects.toggle_module` → `services/projects.toggle_module` → `repositories/projects` | contractor_admin     | `org_scoped_session` (passed into service/repo) |
-| `POST /inbound/email`                        | Email provider webhook  | `routers/inbound.receive_email` → `services/inbound` → `repositories/inbound` | **HMAC signature**   | `privileged_session` (system) then `org_scoped_session` (passed in) |
+| `POST /inbound/email`                        | Email provider webhook  | `routers/inbound.receive_email` → `services/inbound` → document upsert + `document.received` event (same txn) | **HMAC signature**   | `privileged_session` (system) then `org_scoped_session` (passed in) |
 | `GET /review/queue`                          | Contractor UI           | `routers/review.queue` → `services/review` → `repositories/review` | contractor\_\*       | `org_scoped_session` (passed into service/repo) |
 | `POST /review/fields/{id}/verify`            | Contractor UI           | `routers/review.verify_field` → `services/review` → `repositories/review` | contractor\_\*       | `org_scoped_session` (passed into service/repo) |
 | `GET /client/dashboard`                      | Client UI               | `routers/client_dashboard.overview` → `services/client_dashboard` → `repositories/client_dashboard` | client\_\*, pmc_user | `org_scoped_session` + **verified-only filter in repository SQL** |
@@ -301,6 +301,20 @@ Format:
 - **Not changed:** existing behavioural tests, migrations, web, extraction
 - **Verify run:** `make verify` — All checks passed (48 pytest; 11 agent-rule checks)
 - **Decision logged:** D-032
+
+### 2026-10-04 · session · Cursor · Step 6b Part 1 (types + first event)
+
+- **Task:** `document_type` reference table; nullable `document.doc_type` /
+  `evidence_weight` (no UPDATE yet); event chain columns; DEFINER
+  `create_follow_up_event`; inbound emits `document.received`; intake stub route
+- **Files touched:** `0011_*.sql`, inbound service/router, `workers/follow_ups.py`,
+  `packages/agents/{router,agents/intake,allowlist,__init__}`, CI check, tests,
+  DECISIONS/FLOW/HANDOFF, extraction card
+- **New call path:** inbound accept → document + `document.received` (app role);
+  worker later → `create_follow_up_event(parent, proposal_id)` →
+  `document.classified` (agent EXECUTE only)
+- **Not changed:** Intake LLM logic, eval_set_v0, web, migrations 0001–0010
+- **Decision logged:** D-038
 
 ### 2026-10-04 · session · Cursor · Step 6a Part 2 (Extraction Agent)
 

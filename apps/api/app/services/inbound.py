@@ -9,6 +9,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from ..repositories import inbound as inbound_repo
+from ..services import agent_events as agent_events_service
 
 REMINDER_PATTERN = re.compile(r"\breminder\s*[-:#]?\s*(\d+)\b", re.IGNORECASE)
 
@@ -59,6 +60,7 @@ def resolve_project_or_quarantine(
 def accept_document(
     session: Session,
     *,
+    org_id: UUID,
     project_id: UUID,
     filename: str,
     storage_uri: str,
@@ -66,7 +68,9 @@ def accept_document(
     sender_email: str | None,
     subject: str,
 ) -> UUID:
-    return inbound_repo.upsert_inbound_document(
+    """Persist document and document.received in the same transaction."""
+
+    document_id = inbound_repo.upsert_inbound_document(
         session,
         project_id=project_id,
         filename=filename,
@@ -75,3 +79,16 @@ def accept_document(
         sender_email=sender_email,
         reminder_sequence_number=parse_reminder_sequence(subject),
     )
+    agent_events_service.create_event(
+        session,
+        org_id=org_id,
+        event_type="document.received",
+        idempotency_key=f"document.received:{document_id}",
+        engagement_id=project_id,
+        payload={
+            "document_id": str(document_id),
+            "engagement_id": str(project_id),
+            "source": "email_forward",
+        },
+    )
+    return document_id

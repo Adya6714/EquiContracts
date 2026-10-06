@@ -54,17 +54,29 @@ def test_client_cannot_write_project_data(access_data) -> None:
 
 
 def test_client_participant_can_read_but_not_write_document(access_data) -> None:
-    """Client site_member must see documents; writes stay owner-only."""
+    """Client site_member must see documents; writes stay owner-only / revoked."""
     with org_scoped_session(access_data.client) as session:
         document_id = session.execute(
             text("SELECT id FROM document WHERE id = :id"),
             {"id": access_data.document_a},
         ).scalar_one_or_none()
-        update_result = session.execute(
+    assert document_id == access_data.document_a
+    # filename has no UPDATE grant (0011); privilege denied for any app caller.
+    with (
+        org_scoped_session(access_data.client) as session,
+        pytest.raises((ProgrammingError, DBAPIError)),
+    ):
+        session.execute(
             text("UPDATE document SET filename = 'hijacked.pdf' WHERE id = :id"),
             {"id": access_data.document_a},
         )
-    assert document_id == access_data.document_a
+        session.flush()
+    # received_at is granted but RLS still blocks non-owners.
+    with org_scoped_session(access_data.client) as session:
+        update_result = session.execute(
+            text("UPDATE document SET received_at = now() WHERE id = :id"),
+            {"id": access_data.document_a},
+        )
     assert update_result.rowcount == 0
 
 

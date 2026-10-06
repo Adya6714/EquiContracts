@@ -91,6 +91,7 @@ async def receive_email(
     with org_scoped_session(owner_org_id) as session:
         document_id = inbound_service.accept_document(
             session,
+            org_id=owner_org_id,
             project_id=UUID(str(project["id"])),
             filename=payload.filename,
             storage_uri=stored.uri,

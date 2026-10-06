@@ -344,16 +344,15 @@ def test_step_logs_contain_no_filename_email_or_document_text(access_data) -> No
 
 
 def test_unknown_event_type_marks_event_failed(access_data) -> None:
+    from apps.api.tests.conftest import admin_insert_event
+
     _drain()
-    with org_scoped_session(access_data.contractor_a) as session:
-        event = agent_events_service.create_event(
-            session,
-            org_id=access_data.contractor_a,
-            event_type="test.unknown.xyz",
-            idempotency_key=f"unk-{uuid4().hex}",
-            engagement_id=access_data.project_a,
-        )
-        event_id = event["id"]
+    event_id = admin_insert_event(
+        org_id=access_data.contractor_a,
+        event_type="test.unknown.xyz",
+        idempotency_key=f"unk-{uuid4().hex}",
+        engagement_id=access_data.project_a,
+    )
 
     assert run_once() is True
     admin = AdminSessionFactory()

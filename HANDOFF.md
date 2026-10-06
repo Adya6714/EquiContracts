@@ -99,6 +99,10 @@ Canonical log: `DECISIONS.md` (D-001 onward). Do not invent informal D1/D5 label
 
 **Waiting on co-founder:** Q1–Q10 in `docs/plans/MASTER_PLAN_v2.md` (module order, who pays, Idle vs Redundant, Seals, trophy, interest, compliance score, warranty window, reminder ladders, more documents). Also: is a PMC ever appointed for only part of a site? Today a PMC sees every contractor on its site.
 
+**Co-founder questions (Step 6b Intake):**
+1. Confirm the `document_type` seed list (bank_guarantee, work_order, proforma_invoice, certified_ra_bill, measurement_sheet_annexure, work_completion_certificate, warranty_document, payment_reconciliation, delay_site_instruction_mom, email, resolution_statement, other). Adding a type later is one row — wrong names are cheap to fix.
+2. Is a **BG invocation** (client claiming on the guarantee) always `potential_dispute`, or can it be `core_evidence` depending on tone? Importance must come from what the document says, not from type alone.
+
 **Waiting on designer:** S8 interest 10x wrong; S15 savings vs capacity; claim expiry column; Attention state; Review screen and related missing screens.
 
 ## 6. Plan
