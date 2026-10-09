@@ -1107,4 +1107,69 @@ grant only what app code writes. Classified children stay DEFINER-only.
 **Revisit if.** App must insert additional root event types or update more
 document columns.
 
+## D-040 — Intake Agent + plain follow-up rules (6b Parts 2–3)
+
+- **Date:** 2026-10-06
+- **Phase:** 1 / Step 6b Parts 2–3
+- **Decided by:** Composer + founder direction
+- **Status:** accepted
+
+**Context.** Classification must stay Level 2; Extraction handoff must be
+code, not an agent tool; evidence weight must not be hard-coded from type.
+
+**Decision.**
+1. Intake allowlist: `read_document_pages`, `read_document_metadata` only.
+2. Proposal `propose_classification` (Level 2) with document_id, doc_type
+   (unknown → `other`), evidence_weight, confidence, dispute_signals,
+   reason_code. Dispute bias: `dispute_score >= 0.40` → `potential_dispute`.
+3. Low confidence (< `HANDOFF_THRESHOLD`, default 0.70) or `other` → emit
+   proposal then `finish_needs_human`; no follow-up.
+4. Follow-up rules in `packages/agents/follow_ups.py` (plain data). Worker
+   applies after a succeeded Intake run and calls `create_follow_up_event`.
+   Rule: intake + propose_classification + doc_type bank_guarantee +
+   confidence >= threshold.
+5. Model: `LLM_MODEL_INTAKE` else `LLM_MODEL`. Manual `make eval-intake` /
+   `make eval-chain` (not in verify).
+
+**Why this approach.** Keeps reader/writer split; DB DEFINER still owns the
+child event; dispute recall does not depend on the word "dispute".
+
+**Trade-offs accepted.** Work-order linking and multi-attachment split still
+deferred. Weight gold only when cases.json uses a weight label.
+
+**Revisit if.** Co-founder changes HANDOFF_THRESHOLD or wants Level 3 type
+auto-apply before Step 7.
+
+## D-040 — Intake Agent classifies; worker follows up; eval is manual
+
+- **Date:** 2026-10-06
+- **Phase:** 1 / Step 6b Parts 2–3
+- **Decided by:** Composer + founder direction
+- **Status:** accepted
+
+**Context.** Part 1 landed types, `document.received`, and DEFINER follow-up.
+Intake still needed a reader agent, plain follow-up rules, and live evals.
+
+**Decision.**
+1. Intake allowlist: `read_document_pages`, `read_document_metadata` only.
+   Emits `propose_classification` at Level 2 with document_id, doc_type,
+   evidence_weight, confidence, dispute_signals, reason_code.
+2. Evidence weight from content; `dispute_score >= 0.40` forces
+   `potential_dispute`. Unknown type codes become `other`.
+3. Low confidence (< `HANDOFF_THRESHOLD`, default 0.70) or `other` → emit
+   proposal then `finish_needs_human`; no handoff.
+4. Follow-up rules in `packages/agents/follow_ups.py` (plain data). Worker
+   applies after a succeeded Intake run and calls `create_follow_up_event`.
+   Agents never call it. Rule: intake + propose_classification +
+   bank_guarantee + confidence >= threshold.
+5. Model: `LLM_MODEL_INTAKE` falls back to `LLM_MODEL`. Manual
+   `make eval-intake` / `make eval-chain` (not in verify).
+
+**Why this approach.** Same reader/actor split as Extraction; handoff stays
+code-owned so a model cannot invent Extraction work.
+
+**Trade-offs accepted.** Multi-attachment split and WO linking still deferred.
+
+**Revisit if.** Co-founder changes dispute threshold or handoff doc types.
+
 

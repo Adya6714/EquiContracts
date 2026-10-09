@@ -6,6 +6,7 @@ from __future__ import annotations
 _LEVELS: dict[str, int] = {
     "sort_document": 3,
     "set_evidence_weight": 3,
+    "propose_classification": 2,
     "link_exact": 3,
     "link_fuzzy": 1,
     "propose_financial_field": 1,

@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from packages.agents.agents import get_agent
 from packages.agents.context import RunContext
+from packages.agents.follow_ups import proposals_matching_follow_up
 from packages.agents.router import agents_for
 from packages.agents.runtime import run_agent
 
@@ -22,6 +23,7 @@ from ..core.db import AgentSessionFactory, agent_org_scoped_session
 from ..repositories import agent_events as agent_events_repo
 from ..services import agent_events as agent_events_service
 from ..services.agent_events import ClaimedEvent
+from .follow_ups import create_follow_up_event
 from .service_handle import WorkerServiceHandle
 
 NO_AGENT_MESSAGE = "no agent for event type"
@@ -151,6 +153,12 @@ def run_once(
                     cost=outcome.cost,
                     model_version=outcome.model_version,
                 )
+                _apply_follow_ups(
+                    session,
+                    agent_name=agent_name,
+                    parent_event_id=claim.event_id,
+                    run_id=run.run_id,
+                )
             elif outcome.status == "needs_human":
                 agent_events_service.mark_run_needs_human(
                     session,
@@ -176,3 +184,24 @@ def run_once(
             agent_events_service.mark_event_processed(session, event_id=claim.event_id)
         # On failure: leave status claimed for reclaim / attempt cap.
     return True
+
+
+def _apply_follow_ups(
+    session: Session,
+    *,
+    agent_name: str,
+    parent_event_id: UUID,
+    run_id: UUID,
+) -> None:
+    """Run plain follow-up rules; only workers call the DEFINER handoff function."""
+
+    proposals = agent_events_service.list_proposals_for_run(session, run_id=run_id)
+    for proposal_id in proposals_matching_follow_up(
+        agent_name=agent_name,
+        proposals=proposals,
+    ):
+        create_follow_up_event(
+            session,
+            parent_event_id=parent_event_id,
+            proposal_id=UUID(str(proposal_id)),
+        )

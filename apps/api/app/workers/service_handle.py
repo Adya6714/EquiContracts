@@ -74,6 +74,45 @@ class WorkerServiceHandle:
             ),
         }
 
+    def call_intake_llm(self, *, system: str, user: str) -> dict[str, Any]:
+        if self._llm_fn is not None:
+            return self._llm_fn(system=system, user=user)
+        import os
+
+        from packages.extraction.bg_extractor import call_extraction_model_detailed
+        from packages.extraction.llm_pricing import estimate_would_have_cost
+
+        # LLM_MODEL_INTAKE overrides LLM_MODEL for this call only.
+        intake_model = (os.environ.get("LLM_MODEL_INTAKE") or "").strip()
+        previous = os.environ.get("LLM_MODEL")
+        if intake_model:
+            os.environ["LLM_MODEL"] = intake_model
+        try:
+            detailed = call_extraction_model_detailed(system=system, user=user)
+        finally:
+            if intake_model:
+                if previous is None:
+                    os.environ.pop("LLM_MODEL", None)
+                else:
+                    os.environ["LLM_MODEL"] = previous
+
+        model_version = str(detailed["model_version"])
+        prompt_tokens = int(detailed.get("prompt_tokens") or 0)
+        completion_tokens = int(detailed.get("completion_tokens") or 0)
+        return {
+            "model_version": model_version,
+            "raw_text": str(detailed["raw_text"]),
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "cost": str(
+                estimate_would_have_cost(
+                    model_version,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                )
+            ),
+        }
+
     def record_step(
         self,
         *,

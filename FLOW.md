@@ -28,6 +28,8 @@ Every way execution begins. If it isn't listed here, it doesn't exist.
 | `make worker` / `python -m apps.api.app.workers` | Background loop | `workers.agent_events.run_once` → claim → runtime → proposal | agent DB role | claim cross-org; run via `agent_org_scoped_session` |
 | Agent tool `read_document_pages` | Extraction (6a+) | tool → `services.agent_reads.get_document_pages` → repo storage_uri → `DocumentStorage.get_document_bytes` → `document_text` | agent run context | pinned `document_id` + engagement; RLS on document row |
 | `make eval-extraction` | Manual live eval | `packages.extraction.eval_extraction_cli` → Extraction Agent + real LLM on GECPL + `eval/adversarial/` | none (uses `.env`) | no DB; recording services handle |
+| `make eval-intake` | Manual live eval | `packages.agents.eval_intake_cli` → Intake Agent + real LLM on local eval docs + adversarial | none (uses `.env`) | no DB; recording services handle |
+| `make eval-chain` | Manual live eval | `apps.api.app.workers.eval_chain_cli` → inbound accept → worker Intake → follow-up → Extraction | none (uses `.env`) | real DB + MinIO |
 
 
 **Two entry points deserve special attention.**
@@ -192,9 +194,22 @@ Format:
 - **Files touched:** paths
 - **New call path:** entry → function → function
 - **Not changed:** areas explicitly untouched
-- **Verify run:** pass / fail (N tests)
-- **Decision logged:** D-0NN or none
+- **Verify run:** command + result (pass/fail + counts)
+- **Decision logged:** D-xxx or "none"
 ```
+
+### 2026-10-06 · session · Cursor · Step 6b Parts 2–3 (Intake + follow-up rules)
+
+- **Task:** Intake Agent (card/prompt/agent), `packages/agents/follow_ups.py`,
+  worker apply after succeeded Intake, `make eval-intake` / `make eval-chain`
+- **Files touched:** `packages/agents/**`, `apps/api/app/workers/**`,
+  `apps/api/app/services/agent_events.py`, `apps/api/tests/test_intake_agent.py`,
+  Makefile, DECISIONS/FLOW/project-map
+- **New call path:** `document.received` → Intake → `propose_classification` →
+  worker rules → `create_follow_up_event` → `document.classified` → Extraction;
+  `make eval-intake` / `make eval-chain` (manual, real model)
+- **Not changed:** migrations, eval_set_v0, web
+- **Decision logged:** D-040
 
 ---
 

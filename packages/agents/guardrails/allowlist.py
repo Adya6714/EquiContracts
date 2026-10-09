@@ -4,7 +4,7 @@ from __future__ import annotations
 
 _ALLOWLIST: dict[str, frozenset[str]] = {
     "echo": frozenset({"get_engagement_context", "read_document_metadata"}),
-    "intake": frozenset(),  # stub 6b.1; read tools land in 6b.2
+    "intake": frozenset({"read_document_pages", "read_document_metadata"}),
     "extraction": frozenset({"read_document_pages", "read_document_metadata"}),
 }
 

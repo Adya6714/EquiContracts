@@ -234,6 +234,10 @@ def create_proposal(
     )
 
 
+def list_proposals_for_run(session: Session, *, run_id: UUID) -> list[dict[str, Any]]:
+    return agent_events_repo.list_proposals_for_run(session, run_id=run_id)
+
+
 def record_review_decision(
     session: Session,
     *,

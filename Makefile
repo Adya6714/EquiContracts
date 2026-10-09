@@ -1,4 +1,4 @@
-.PHONY: install up down migrate reset rules lint fmt typecheck test verify dev worker eval-extraction
+.PHONY: install up down migrate reset rules lint fmt typecheck test verify dev worker eval-extraction eval-intake eval-chain
 
 PYTHON ?= .venv/bin/python
 
@@ -66,6 +66,14 @@ worker:
 eval-extraction:
 	set -a; [ -f .env ] && . ./.env; set +a; \
 	PYTHONPATH=. $(PYTHON) -m packages.extraction.eval_extraction_cli
+
+eval-intake:
+	set -a; [ -f .env ] && . ./.env; set +a; \
+	PYTHONPATH=. $(PYTHON) -m packages.agents.eval_intake_cli
+
+eval-chain:
+	set -a; [ -f .env ] && . ./.env; set +a; \
+	PYTHONPATH=. $(PYTHON) -m apps.api.app.workers.eval_chain_cli
 
 dev:
 	@$(PYTHON) -m uvicorn apps.api.app.main:app --reload --port 8000 & \

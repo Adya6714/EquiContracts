@@ -254,20 +254,22 @@ Canonical decision log: [DECISIONS.md](../../DECISIONS.md).
 ## Part 7 — Current state and the path forward
 
 **Done (code):** schema through BG tables · site/engagement + locked quarantine (0009) ·
-agent foundation schema (0010) · agent runtime/guardrails/echo + worker `run_once`
-(D-034/D-035) · Extraction Agent (BG) on `document.classified` (D-037) · RLS ·
-API core · four routers on services/repositories · walking web skeleton · CI
+agent foundation schema (0010) · document types + follow-up DEFINER (0011) ·
+agent runtime/guardrails/echo + worker `run_once` (D-034/D-035) · Extraction Agent
+(BG) on `document.classified` (D-037) · Intake Agent + follow-up rules (D-040) ·
+RLS · API core · four routers on services/repositories · walking web skeleton · CI
 guardrails · rule engine loader · plus-address inbound · BG extractor with
 provider-selectable LLM settings · GECPL eval baseline 4/4
 (`gemini-2.5-flash`) · FLOW/DECISIONS living docs.
 
-**Not built yet:** Intake Agent · other document-type extractors · LangGraph ·
+**Not built yet:** other document-type extractors · LangGraph ·
 promotion beyond proposals · real auth (header stub remains) · Tracks B/C ·
 web rename away from `/projects`.
 
 **Immediate path:** follow [START_HERE.md](../plans/START_HERE.md) steps 2→10.
 Step 1 (BG extractor baseline) is done. Step 5 Part B (echo runtime) is done.
-Step 6a (Extraction Agent BG) is done. Next: Step 6b Intake Agent.
+Step 6a (Extraction Agent BG) is done. Step 6b Intake Agent is done.
+Next: Step 7 review and promotion.
 
 **Before any public deployment:** replace the auth stub (Step 10). Full checklist:
 [docs/security/pre-launch-checklist.md](../security/pre-launch-checklist.md).
